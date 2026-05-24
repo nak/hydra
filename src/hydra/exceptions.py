@@ -1,0 +1,3 @@
+
+class OperationCanceledError(Exception):
+    pass

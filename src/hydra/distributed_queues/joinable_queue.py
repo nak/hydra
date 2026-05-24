@@ -1,0 +1,439 @@
+"""
+Copyright (c) 2023, the Pytest-MProc developers.
+This file is part of the Pytest-MProc project, which is distributed under the MIT License.
+"""
+import asyncio
+import logging
+import os
+import pickle
+import socket
+import sys
+import threading
+from contextlib import suppress
+from copy import copy
+from typing import Generic, TypeVar
+
+from hydra.exceptions import OperationCanceledError
+
+# Generic Type for queue
+T = TypeVar('T')
+# Sentinel Type:
+S = TypeVar('S')
+
+logger = logging.getLogger(__name__)
+logger.setLevel(os.getenv("PYTEST_MPROC_LOG_LEVEL", "WARNING").upper())
+logger.addHandler(logging.StreamHandler())
+
+
+class _BaseJoinableQueue(Generic[T,S]):
+    """
+    Base class for joinable queues.
+    """
+    TIMEOUT_CONNECT = 10  # seconds
+    TIMEOUT_SOCKET_IO = 10  # seconds
+    _MAX_PACKET_SIZE = 2 * 4096  # bytes
+    _MAX_CLIENT_Q_SIZE = 100  # max depth of client queues
+
+    ACTION_GET = "GET"
+    ACTION_PUT = "PUT"
+    ACTION_JOIN = "JOIN"
+    ACTION_TASK_STARTED = "TASK_STARTED"
+    ACTION_TASK_DONE = "TASK_DONE"
+    ACTION_REGISTER = "REGISTER"
+    ACTION_UNREGISTER = "UNREGISTER"
+    ACTION_WAIT_CLIENTS = "WAIT_CLIENTS"
+
+    def __init__(self, address: tuple[str, int], size: int):
+        self._address = address
+        self._clients: asyncio.Queue[str] = asyncio.Queue(self._MAX_CLIENT_Q_SIZE)
+        self._client_ids: set[str] = set()
+        self._shutdown_sem = threading.Semaphore(0)
+        self._cleanup_sem: threading.Semaphore | None = None
+        self._tasks_in_progress: set[T] = set()
+        self._size = size
+
+    def client_count(self):
+        """
+        Returns the number of connected clients.
+        """
+        return len(self._client_ids)
+
+    @property
+    def address(self):
+        """
+        Returns the address of this joinable queue server.
+        """
+        return self._address
+
+    async def _handle_request(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, queue: asyncio.Queue[T | S]):
+        """
+        Handle incoming requests from clients.
+
+        Args:
+            reader: The stream reader for incoming data.
+            writer: The stream writer for sending data.
+        """
+        request_bytes = b''
+        while packet := await reader.read(self._MAX_PACKET_SIZE):
+            request_bytes += packet
+        if not request_bytes:
+            writer.write(pickle.dumps(RuntimeError("Empty request received.")))
+            await writer.drain()
+            writer.close()
+            return
+        action, payload = pickle.loads(request_bytes)
+        response_bytes = None
+        try:
+            response_bytes = await self._take_action(queue, action, payload)
+        except asyncio.CancelledError:
+            if action == self.ACTION_GET:
+                response_bytes = pickle.dumps(asyncio.QueueEmpty("Server task canceled; no item to service in queue"))
+            else:
+                response_bytes = pickle.dumps(
+                    OperationCanceledError("Server task cancelled; no item to service in queue")
+                )
+        except pickle.UnpicklingError as upe:
+            print(f"Unable to unpickle request: {upe}", file=sys.stderr)
+            response_bytes = pickle.dumps(RuntimeError(f"Unable to unpickle request: {upe}"))
+        except (asyncio.exceptions.TimeoutError, TimeoutError) as te:
+            if action == self.ACTION_GET:
+                response_bytes = pickle.dumps(asyncio.QueueEmpty("Timeout waiting for item in queue"))
+            elif action == self.ACTION_PUT:
+                response_bytes = pickle.dumps(asyncio.QueueFull("Timeout waiting for item to be put in queue"))
+            else:
+                response_bytes = pickle.dumps(te)
+        except asyncio.QueueEmpty as qe:
+            response_bytes = pickle.dumps(qe)
+        except Exception as e:
+            print(f"!!! General exception in _handle_request: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+            response_bytes = pickle.dumps(e)
+        finally:
+            if response_bytes is None:
+                writer.write(pickle.dumps(RuntimeError("No response generated for request.")))
+            else:
+                writer.write(response_bytes)
+            await writer.drain()
+            writer.close()
+
+    async def _take_action(self, queue: asyncio.Queue[T | S], action: str, payload: T | S) -> bytes:
+        """
+        Take action based on the request action and payload.
+
+        Args:
+            action: The action to perform (GET, PUT, JOIN, TASK_DONE, REGISTER).
+            payload: The payload associated with the action.
+
+        Returns:
+            bytes: The response bytes to send back to the client.
+        """
+        match action:
+            case self.ACTION_GET:
+                timeout = payload
+                no_wait = timeout == 0
+                if no_wait:
+                    # generally called after a join operation when no more items are expected to be put in the queue
+                    item = queue.get_nowait()
+                elif timeout is not None:
+                    item = await asyncio.wait_for(queue.get(), timeout=timeout)
+                else:
+                    item = await queue.get()
+                response_bytes = pickle.dumps(item)
+            case self.ACTION_PUT:
+                try:
+                    item, timeout = payload
+                except TypeError:
+                    item = payload
+                    timeout = None
+                await asyncio.wait_for(queue.put(item), timeout=timeout)
+                response_bytes = b'\x00'
+            case self.ACTION_JOIN:
+                if payload is not None and not isinstance(payload, (float, int)):
+                    response_bytes = pickle.dumps(TypeError("Expected float or int timeout value for join operation."))
+                else:
+                    timeout = payload
+                    await asyncio.wait_for(queue.join(), timeout=timeout)
+                    response_bytes = b'\x00'
+            case self.ACTION_TASK_DONE:
+                if payload is not None and payload not in self._tasks_in_progress:
+                    raise  RuntimeError(f">> ERROR: Received task_done for item {payload} not in progress:")
+                elif payload is not None:
+                    self._tasks_in_progress.remove(payload)
+                queue.task_done()
+                response_bytes = b'\x00'
+            case self.ACTION_TASK_STARTED:
+                if payload is not None and payload in self._tasks_in_progress:
+                    raise RuntimeError(f"Received task_started for item already in progress: {payload}")
+                elif payload is not None:
+                    self._tasks_in_progress.add(payload)
+                response_bytes = b'\x00'
+            case self.ACTION_REGISTER:
+                # Register a new client
+                if payload in self._client_ids:
+                    response_bytes = pickle.dumps(ValueError(f"Client {payload} already registered."))
+                else:
+                    await self._clients.put(payload)
+                    self._client_ids.add(payload)
+                    response_bytes = b'\x00'
+            case self.ACTION_UNREGISTER:
+                # Unregister a client
+                if payload not in self._client_ids:
+                    response_bytes = pickle.dumps(KeyError(f"Client {payload} not registered."))
+                else:
+                    self._clients.get_nowait()
+                    self._client_ids.remove(payload)
+                    self._clients.task_done()
+                    response_bytes = b'\x00'
+            case self.ACTION_WAIT_CLIENTS:
+                if not isinstance(payload, (float | int | None)):
+                    response_bytes = pickle.dumps(TypeError("Expected float or int timeout value for wait operation."))
+                else:
+                    timeout = payload
+                    await asyncio.wait_for(self._clients.join(), timeout=timeout)
+                    response_bytes = b'\x00'
+            case _:
+                raise ValueError(f"Unknown action: {action}")
+        return response_bytes
+
+    def close(self):
+        return self.shutdown()
+
+    def shutdown(self):
+        self._shutdown_sem.release()
+        if self._cleanup_sem is not None:
+            self._cleanup_sem.release()
+            self._cleanup_sem = None
+
+    async def _serve(self, start_sem: threading.Semaphore | asyncio.Semaphore):
+        """
+        Start the joinable queue server.
+        """
+        queue = asyncio.Queue[T | S](self._size)
+        if self._cleanup_sem is None:
+            self._cleanup_sem = threading.Semaphore(0)
+
+        async def handle_request_bound(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+            nonlocal queue
+            await self._handle_request(reader, writer, queue)
+
+        transport = await asyncio.start_server(handle_request_bound, host=self._address[0], port=self._address[1],)
+        start_sem.release()
+        # Must implement polling on threading.Semaphore as an asyncio.Semaphore cannot be used across different threads
+        while not self._shutdown_sem.acquire(blocking=False):
+            await asyncio.sleep(1)
+        # drain the queue
+        while not queue.empty():
+            item = queue.get_nowait()
+            logger.error(">> WARNING: Item still in queue during shutdown: %s", item)
+            queue.task_done()
+
+        transport.close()
+        self._cleanup_sem.release()
+
+    def start(self) -> threading.Thread:
+        """
+        Start the joinable queue server in a separate thread.
+        """
+        start_sem = threading.Semaphore(0)
+        thread = threading.Thread(target=asyncio.run,
+                                  args=(self._serve(start_sem),))
+        thread.start()
+        start_sem.acquire(blocking=True)
+        return thread
+
+    async def start_async(self) -> asyncio.Task:
+        """
+        Start the joinable queue server in a separate thread.
+        """
+        start_sem = asyncio.Semaphore(0)
+        task = asyncio.create_task(self._serve(start_sem))
+        await start_sem.acquire()
+        return task
+
+    @classmethod
+    def transact(cls, address: tuple[str, int], action: str, payload: T | S,  timeout_io: float | None = None)\
+            -> int | T | S:
+        """
+        Perform a transaction with the joinable queue server.
+
+        Args:
+            address: The address of the server (host, port).
+            action: The action to perform (GET, PUT, JOIN, TASK_DONE, REGISTER).
+            payload: The payload associated with the action.
+            timeout_io: The timeout for the transaction.
+
+        Returns:
+            The response bytes from the server.
+        """
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setblocking(False)
+        sock.settimeout(timeout_io)
+        try:
+            sock.connect(address)
+        except TimeoutError:
+            raise TimeoutError(f"Timeout connecting to {address} after {timeout_io} seconds")
+        try:
+            data = pickle.dumps((action, payload))
+            sock.sendall(data)
+            sock.shutdown(socket.SHUT_WR)
+            result_bytes = b''
+            while packet := sock.recv(cls._MAX_PACKET_SIZE):
+                result_bytes += packet
+            return cls._process_response(result_bytes, action)
+        except (asyncio.exceptions.TimeoutError, TimeoutError):
+            raise TimeoutError("Timeout waiting for response from server")
+        finally:
+            with suppress(Exception):
+                sock.shutdown(socket.SHUT_WR)
+            with suppress(Exception):
+                sock.shutdown(socket.SHUT_RD)
+            sock.close()
+
+    @classmethod
+    def _process_response(cls, result_bytes: bytes, action: str) -> int | T | S:
+        if len(result_bytes) > 1:
+            result = pickle.loads(result_bytes)
+            if isinstance(result, pickle.UnpicklingError):
+                raise RuntimeError("Failed to unpickle response from server") from result
+            elif isinstance(result, Exception):
+                raise copy(result) from result
+            return result
+        elif action in (cls.ACTION_JOIN,  ):
+            return 0
+        elif len(result_bytes) == 1:
+            return result_bytes[0]
+        elif action in (cls.ACTION_GET, ):
+            raise asyncio.QueueEmpty()
+        else:
+            raise ConnectionError("No response received from server")
+
+    async def transact_async(self, address: tuple[str, int], action: str, payload: T | S,
+                             timeout_io: float | None = TIMEOUT_SOCKET_IO) -> int | T | S:
+        """
+        Perform an asynchronous transaction with the joinable queue server.
+
+        Args:
+            address: The address of the server (host, port).
+            action: The action to perform (GET, PUT, JOIN, TASK_DONE, REGISTER).
+            payload: The payload associated with the action.
+            timeout_io: The timeout for the transaction.
+
+        Returns:
+            The response from the server.
+        """
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setblocking(False)
+        try:
+            await asyncio.wait_for(asyncio.get_event_loop().sock_connect(sock, address), timeout=timeout_io)
+        except asyncio.exceptions.TimeoutError:
+            print("Timeout trying to connect to server", file=sys.stderr)
+            raise
+        try:
+            data = pickle.dumps((action, payload))
+            await asyncio.wait_for(asyncio.get_event_loop().sock_sendall(sock, data), timeout=timeout_io)
+            sock.shutdown(socket.SHUT_WR)
+            result_bytes = b''
+            while packet := await asyncio.get_event_loop().sock_recv(sock, self._MAX_PACKET_SIZE):
+                result_bytes += packet
+            return self._process_response(result_bytes, action)
+        except (asyncio.exceptions.TimeoutError, TimeoutError):
+            raise TimeoutError("Timeout waiting for response from server")
+        finally:
+            with suppress(Exception):
+                sock.shutdown(socket.SHUT_WR)
+            with suppress(Exception):
+                sock.shutdown(socket.SHUT_RD)
+            sock.close()
+
+    def register(self, client_id: str) -> None:
+        """
+        Register a new client with the joinable queue server.
+
+        Raises:
+            RuntimeError: if the server returns an error
+        """
+        if self.transact(self._address, self.ACTION_REGISTER, client_id, timeout_io=self.TIMEOUT_SOCKET_IO) != 0:
+            raise RuntimeError(f"Failed to register client {client_id} with joinable queue server")
+
+    def unregister(self, client_id: str) -> None:
+        """
+        Register a new client with the joinable queue server.
+
+        Raises:
+            RuntimeError: if the server returns an error
+        """
+        if self.transact(self._address, self.ACTION_UNREGISTER, client_id, timeout_io=self.TIMEOUT_SOCKET_IO) != 0:
+            raise RuntimeError(f"Failed to register client {client_id} with joinable queue server")
+
+    async def unregister_async(self, client_id: str) -> None:
+        """
+        Register a new client with the joinable queue server.
+
+        Raises:
+            RuntimeError: if the server returns an error
+        """
+        if await self.transact_async(
+            self._address, self.ACTION_UNREGISTER, client_id, timeout_io=self.TIMEOUT_SOCKET_IO
+        ) != 0:
+            raise RuntimeError(f"Failed to register client {client_id} with joinable queue server")
+
+    async def register_async(self, client_id: str) -> None:
+        """
+        Register a new client with the joinable queue server.
+
+        Raises:
+            RuntimeError: if the server returns an error
+        """
+        if await self.transact_async(
+            self._address, self.ACTION_REGISTER, client_id, timeout_io=self.TIMEOUT_SOCKET_IO
+        ) != 0:
+            raise RuntimeError(f"Failed to register client {client_id} with joinable queue server")
+
+
+class SinkJoinableQueue(_BaseJoinableQueue[T, S]):
+    """
+    Joinable queue that can be used as a sink for items to be processed by multiple clients.
+    """
+
+    def __init__(self, address: tuple[str, int], sentinel: S, size: int = 0):
+        super().__init__(address, size)
+        self._waiting_on_clients = False
+        self._sentinel = sentinel
+        self._address = address
+
+
+    async def _take_action(self, queue: asyncio.Queue[T | S], action: str, payload: float | int | T | S) -> bytes:
+        if action == self.ACTION_JOIN:
+            self._waiting_on_clients = True
+            response_bytes = await super()._take_action(queue, self.ACTION_WAIT_CLIENTS, payload)
+            await queue.put(self._sentinel)
+        elif action == self.ACTION_UNREGISTER:
+            response_bytes = await super()._take_action(queue, action, payload)
+        else:
+            response_bytes = await super()._take_action(queue, action, payload)
+        return response_bytes
+
+
+class SourceJoinableQueue(_BaseJoinableQueue[T, S]):
+    """
+    Joinable queue that can be used as a source for items to be processed by multiple clients.
+    """
+
+    def __init__(self, address: tuple[str, int], size: int = 0):
+        super().__init__(address, size)
+        self._finalizing  = False
+
+    async def _take_action(self, queue: asyncio.Queue[T | S], action: str, payload: float | int | T | S) -> bytes:
+        if action == self.ACTION_GET:
+            if self._finalizing:
+                item = queue.get_nowait()
+                response_bytes = pickle.dumps(item)
+            else:
+                response_bytes = await super()._take_action(queue, action, payload)
+        elif action == self.ACTION_JOIN:
+            self._finalizing = True
+            response_bytes = await super()._take_action(queue, action, payload)
+        else:
+            response_bytes = await super()._take_action(queue, action, payload)
+        return response_bytes
