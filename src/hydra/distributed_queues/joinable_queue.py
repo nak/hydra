@@ -214,7 +214,6 @@ class _BaseJoinableQueue(Generic[T,S]):
             self._cleanup_sem = threading.Semaphore(0)
 
         async def handle_request_bound(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
-            nonlocal queue
             await self._handle_request(reader, writer, queue)
 
         transport = await asyncio.start_server(handle_request_bound, host=self._address[0], port=self._address[1],)
