@@ -25,3 +25,8 @@ async def test_server_and_client_async_queue(free_port: int):
 
         with pytest.raises(asyncio.queues.QueueEmpty):
             await server_queue.get(timeout=0.1)
+
+        with pytest.raises(asyncio.TimeoutError):
+            await server_queue.join(timeout=0.1)
+
+    await server_queue.join(timeout=0.1)

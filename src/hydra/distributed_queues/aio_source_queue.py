@@ -1,6 +1,5 @@
 #  Copyright (c) 2025.  John Rusnak.  All rights reserved.
 #  This code may not be used for training AI or similar models without explicit consent from the author.
-from asyncio import QueueEmpty
 from typing import TypeVar
 
 from hydra.distributed_queues.aio_queue_api import AsyncConsumer, AsyncSourceFeed
@@ -53,12 +52,9 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
         """
         if self._closed:
             raise RuntimeError("Queue is closed and cannot get items")
-        try:
-            return await self._joinable_queue.transact_async(
-                self._address, self._joinable_queue.ACTION_GET, payload=timeout
-            )
-        except QueueEmpty:
-            return None
+        return await self._joinable_queue.transact_async(
+            self._address, self._joinable_queue.ACTION_GET, payload=timeout
+        )
 
     async def task_started(self, task: T | None = None) -> None:
         """
@@ -84,10 +80,6 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
         """
         Close the connection to the remote queue.
         """
-        if not self._closed and await self._joinable_queue.transact_async(
-            self._address, self._joinable_queue.ACTION_UNREGISTER, payload=self._name
-        ) != 0:
-            raise RuntimeError("Failed to close connection to remote queue")
         self._closed = True
 
 
@@ -103,10 +95,11 @@ class AsyncSourceQueueFeed(AsyncSourceFeed[T]):
         self._joinable_queue = SourceJoinableQueue[T, None](address=address, size=size)
 
     async def __aenter__(self):
+        await self._joinable_queue.start_async()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        await self.close()
 
     def __getstate__(self) -> dict[str, object]:
         """
@@ -146,7 +139,7 @@ class AsyncSourceQueueFeed(AsyncSourceFeed[T]):
         ) != 0:
             raise RuntimeError("Failed to join joinable queue server")
 
-    def close(self) -> None:
+    async def close(self) -> None:
         """
         Close the connection to the remote queue.
         """

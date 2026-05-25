@@ -106,9 +106,6 @@ class _BaseJoinableQueue(Generic[T, S]):
         except asyncio.QueueEmpty as qe:
             response_bytes = pickle.dumps(qe)
         except Exception as e:
-            print(f"!!! General exception in _handle_request: {e}", file=sys.stderr)
-            import traceback
-            traceback.print_exc(file=sys.stderr)
             response_bytes = pickle.dumps(e)
         finally:
             if response_bytes is None:
@@ -137,7 +134,10 @@ class _BaseJoinableQueue(Generic[T, S]):
                     # generally called after a join operation when no more items are expected to be put in the queue
                     item = queue.get_nowait()
                 elif timeout is not None:
-                    item = await asyncio.wait_for(queue.get(), timeout=timeout)
+                    try:
+                        item = await asyncio.wait_for(queue.get(), timeout=timeout)
+                    except asyncio.TimeoutError:
+                        raise asyncio.queues.QueueEmpty("Timeout waiting for item in queue")
                 else:
                     item = await queue.get()
                 response_bytes = pickle.dumps(item)
