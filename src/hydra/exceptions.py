@@ -1,3 +1,5 @@
 
 class OperationCanceledError(Exception):
-    pass
+    """
+    Raise when acting on an operation that is canceled
+    """

@@ -20,14 +20,14 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
         self._address = address
         self._joinable_queue = SourceJoinableQueue[T, None](address)
         self._closed = True
-        
+
     async def __aenter__(self):
         self._closed = False
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
-        
+
     def __getstate__(self) -> dict[str, object]:
         """
         Return only what a client queue needs to connect to the server, not the internal state of the queue/server.
@@ -101,7 +101,7 @@ class AsyncSourceQueueFeed(AsyncSourceFeed[T]):
         self._name = name
         self._address = address
         self._joinable_queue = SourceJoinableQueue[T, None](address=address, size=size)
-        
+
     async def __aenter__(self):
         return self
 
@@ -125,8 +125,10 @@ class AsyncSourceQueueFeed(AsyncSourceFeed[T]):
             item: item to put in the queue.
             timeout: The timeout for the transaction.
         """
-        if await self._joinable_queue.transact_async(self._address, self._joinable_queue.ACTION_PUT, (item, timeout),
-                                     timeout_io=self._joinable_queue.TIMEOUT_SOCKET_IO) != 0:
+        if await self._joinable_queue.transact_async(
+            self._address, self._joinable_queue.ACTION_PUT, (item, timeout),
+            timeout_io=self._joinable_queue.TIMEOUT_SOCKET_IO
+        ) != 0:
             raise RuntimeError("Failed to put data to joinable queue server")
 
     async def join(self, timeout: float | None = None) -> None:
@@ -139,7 +141,9 @@ class AsyncSourceQueueFeed(AsyncSourceFeed[T]):
         Raises:
             RuntimeError: if the server returns an error
         """
-        if await self._joinable_queue.transact_async(self._address, self._joinable_queue.ACTION_JOIN, payload=timeout) != 0:
+        if await self._joinable_queue.transact_async(
+                self._address, self._joinable_queue.ACTION_JOIN, payload=timeout
+        ) != 0:
             raise RuntimeError("Failed to join joinable queue server")
 
     def close(self) -> None:

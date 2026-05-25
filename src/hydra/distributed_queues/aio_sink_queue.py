@@ -62,7 +62,7 @@ class AsyncSinkQueueFeed(AsyncFeed[T]):
             await self._joinable_queue.unregister_async(self._name)
 
 
-class AsyncSinkQueueConsumer( Generic[T, S], AsyncConsumer[T]):
+class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
     """
     Joinable queue that can be used as a sink for items to be processed from multiple remote clients
     """
@@ -106,7 +106,6 @@ class AsyncSinkQueueConsumer( Generic[T, S], AsyncConsumer[T]):
         return await self._joinable_queue.transact_async(
             self._address, self._joinable_queue.ACTION_GET, payload=timeout
         )
-
 
     async def join(self, timeout: float | None = None) -> None:
         """

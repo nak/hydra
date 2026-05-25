@@ -25,7 +25,7 @@ logger.setLevel(os.getenv("PYTEST_MPROC_LOG_LEVEL", "WARNING").upper())
 logger.addHandler(logging.StreamHandler())
 
 
-class _BaseJoinableQueue(Generic[T,S]):
+class _BaseJoinableQueue(Generic[T, S]):
     """
     Base class for joinable queues.
     """
@@ -65,7 +65,8 @@ class _BaseJoinableQueue(Generic[T,S]):
         """
         return self._address
 
-    async def _handle_request(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, queue: asyncio.Queue[T | S]):
+    async def _handle_request(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter,
+                              queue: asyncio.Queue[T | S]):
         """
         Handle incoming requests from clients.
 
@@ -157,7 +158,7 @@ class _BaseJoinableQueue(Generic[T,S]):
                     response_bytes = b'\x00'
             case self.ACTION_TASK_DONE:
                 if payload is not None and payload not in self._tasks_in_progress:
-                    raise  RuntimeError(f">> ERROR: Received task_done for item {payload} not in progress:")
+                    raise RuntimeError(f"Received task_done for item {payload} not in progress:")
                 elif payload is not None:
                     self._tasks_in_progress.remove(payload)
                 queue.task_done()
@@ -298,7 +299,7 @@ class _BaseJoinableQueue(Generic[T,S]):
             elif isinstance(result, Exception):
                 raise copy(result) from result
             return result
-        elif action in (cls.ACTION_JOIN,  ):
+        elif action in (cls.ACTION_JOIN, ):
             return 0
         elif len(result_bytes) == 1:
             return result_bytes[0]
@@ -401,7 +402,6 @@ class SinkJoinableQueue(_BaseJoinableQueue[T, S]):
         self._sentinel = sentinel
         self._address = address
 
-
     async def _take_action(self, queue: asyncio.Queue[T | S], action: str, payload: float | int | T | S) -> bytes:
         if action == self.ACTION_JOIN:
             self._waiting_on_clients = True
@@ -421,7 +421,7 @@ class SourceJoinableQueue(_BaseJoinableQueue[T, S]):
 
     def __init__(self, address: tuple[str, int], size: int = 0):
         super().__init__(address, size)
-        self._finalizing  = False
+        self._finalizing = False
 
     async def _take_action(self, queue: asyncio.Queue[T | S], action: str, payload: float | int | T | S) -> bytes:
         if action == self.ACTION_GET:
