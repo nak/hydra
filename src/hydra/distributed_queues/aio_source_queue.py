@@ -1,7 +1,7 @@
 #  Copyright (c) 2025.  John Rusnak.  All rights reserved.
 #  This code may not be used for training AI or similar models without explicit consent from the author.
 import ssl
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import TypeVar, AsyncGenerator
 
 import hydra.ssl_contexts
@@ -93,7 +93,9 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
         """
         Close the connection to the remote queue.
         """
-        await self._joinable_queue.unregister_async(self._name, self._ssl_context)
+        if not self._closed:
+            with suppress(ConnectionError):
+                await self._joinable_queue.unregister_async(self._name, self._ssl_context)
         self._closed = True
 
 
