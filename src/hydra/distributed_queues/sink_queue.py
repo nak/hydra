@@ -6,7 +6,7 @@ import ssl
 from contextlib import contextmanager
 from typing import TypeVar, Generic, Generator
 
-import hydra.ssl
+import hydra.ssl_contexts
 from hydra.distributed_queues.joinable_queue import SinkJoinableQueue
 from hydra.distributed_queues.queue_api import Feed, SinkConsumer
 
@@ -43,10 +43,11 @@ class SinkQueueFeed(Feed[T]):
         Return only what a client queue needs to connect to the server, not the internal state of the queue/server.
         """
         return {'_name': self._name, '_address': self._address, '_closed': self._closed,
-                '_ssl_context': hydra.ssl.extract_ssl_context_info(self._ssl_context) if self._ssl_context else None}
+                '_ssl_context': hydra.ssl_contexts.extract_ssl_context_info(self._ssl_context)
+                if self._ssl_context else None}
 
     def __setstate__(self, state):
-        state['_ssl_context'] = hydra.ssl.rebuild_ssl_context(state['_ssl_context'])\
+        state['_ssl_context'] = hydra.ssl_contexts.rebuild_ssl_context(state['_ssl_context'])\
             if state.get('_ssl_context') else None
         self.__dict__.update(state)
 
@@ -103,12 +104,12 @@ class SinkQueueConsumer(Generic[T, S], SinkConsumer[T]):
         """
         return {
             '_name': self._name, '_address': self._address,
-            '_client_ssl_context': hydra.ssl.extract_ssl_context_info(self._client_ssl_context)
+            '_client_ssl_context': hydra.ssl_contexts.extract_ssl_context_info(self._client_ssl_context)
             if self._client_ssl_context else None,
         }
 
     def __setstate__(self, state):
-        state['_client_ssl_context'] = hydra.ssl.rebuild_ssl_context(state['_client_ssl_context'])\
+        state['_client_ssl_context'] = hydra.ssl_contexts.rebuild_ssl_context(state['_client_ssl_context'])\
             if state.get('_client_ssl_context') else None
         self.__dict__.update(state)
 

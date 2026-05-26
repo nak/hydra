@@ -5,9 +5,7 @@ import asyncio
 import pytest
 import ssl
 
-from aiohttp.helpers import sentinel
-
-from hydra.ssl import extract_ssl_context_info
+from hydra.ssl_contexts import extract_ssl_context_info
 
 
 @pytest.mark.asyncio

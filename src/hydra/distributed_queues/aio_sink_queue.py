@@ -4,7 +4,7 @@ import ssl
 from contextlib import asynccontextmanager
 from typing import TypeVar, Generic, AsyncGenerator
 
-import hydra.ssl
+import hydra.ssl_contexts
 from hydra.distributed_queues.aio_queue_api import AsyncFeed, AsyncConsumer
 from hydra.distributed_queues.joinable_queue import SinkJoinableQueue
 
@@ -39,10 +39,11 @@ class AsyncSinkQueueFeed(AsyncFeed[T]):
         Return only what a client queue needs to connect to the server, not the internal state of the queue/server.
         """
         return {'_name': self._name, '_address': self._address, '_closed': self._closed,
-                '_ssl_context': hydra.ssl.extract_ssl_context_info(self._ssl_context) if self._ssl_context else None}
+                '_ssl_context': hydra.ssl_contexts.extract_ssl_context_info(self._ssl_context)
+                if self._ssl_context else None}
 
     def __setstate__(self, state) -> None:
-        state['_ssl_context'] = hydra.ssl.rebuild_ssl_context(state['_ssl_context']) \
+        state['_ssl_context'] = hydra.ssl_contexts.rebuild_ssl_context(state['_ssl_context']) \
             if state.get('_ssl_context') else None
         self.__dict__.update(state)
 
@@ -100,17 +101,17 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
         """
         Return only what a client queue needs to connect to the server, not the internal state of the queue/server.
         """
-        server_ssl_dict = hydra.ssl.extract_ssl_context_info(self._server_ssl_context)\
+        server_ssl_dict = hydra.ssl_contexts.extract_ssl_context_info(self._server_ssl_context)\
             if self._server_ssl_context else None
-        client_ssl_dict = hydra.ssl.extract_ssl_context_info(self._client_ssl_context)\
+        client_ssl_dict = hydra.ssl_contexts.extract_ssl_context_info(self._client_ssl_context)\
             if self._client_ssl_context else None
         return {'_name': self._name, '_address': self._address,
                 '_server_ssl_context': server_ssl_dict,  '_client_ssl_context': client_ssl_dict}
 
     def __setstate__(self, state):
-        state['_server_ssl_context'] = hydra.ssl.rebuild_ssl_context(state['_server_ssl_context'])\
+        state['_server_ssl_context'] = hydra.ssl_contexts.rebuild_ssl_context(state['_server_ssl_context'])\
             if state.get('_server_ssl_context') else None
-        state['_client_ssl_context'] = hydra.ssl.rebuild_ssl_context(state['_client_ssl_context'])\
+        state['_client_ssl_context'] = hydra.ssl_contexts.rebuild_ssl_context(state['_client_ssl_context'])\
             if state.get('_ssl_context') else None
         self.__dict__.update(state)
 

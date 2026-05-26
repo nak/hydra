@@ -247,7 +247,8 @@ class _BaseJoinableQueue(Generic[T, S]):
             queue.task_done()
 
         transport.close()
-        self._cleanup_sem.release()
+        if self._cleanup_sem is not None:
+            self._cleanup_sem.release()
 
     def start(self, ssl_context: ssl.SSLContext | None) -> threading.Thread:
         """
