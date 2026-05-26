@@ -59,8 +59,7 @@ class AsyncSinkQueueFeed(AsyncFeed[T]):
         if self._closed:
             raise RuntimeError("Queue is closed and cannot put items")
         if await self._joinable_queue.transact_async(
-                self._address, self._joinable_queue.ACTION_PUT, (item, timeout),
-                timeout_io=self._joinable_queue.TIMEOUT_SOCKET_IO,
+                self._address, self._joinable_queue.ACTION_PUT, (item, timeout), timeout=timeout,
                 ssl_context=self._ssl_context) != 0:
             raise RuntimeError("Failed to put data to joinable queue server")
 
@@ -101,16 +100,11 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
         """
         Return only what a client queue needs to connect to the server, not the internal state of the queue/server.
         """
-        server_ssl_dict = hydra.ssl_contexts.extract_ssl_context_info(self._server_ssl_context)\
-            if self._server_ssl_context else None
         client_ssl_dict = hydra.ssl_contexts.extract_ssl_context_info(self._client_ssl_context)\
             if self._client_ssl_context else None
-        return {'_name': self._name, '_address': self._address,
-                '_server_ssl_context': server_ssl_dict,  '_client_ssl_context': client_ssl_dict}
+        return {'_name': self._name, '_address': self._address, '_client_ssl_context': client_ssl_dict}
 
     def __setstate__(self, state):
-        state['_server_ssl_context'] = hydra.ssl_contexts.rebuild_ssl_context(state['_server_ssl_context'])\
-            if state.get('_server_ssl_context') else None
         state['_client_ssl_context'] = hydra.ssl_contexts.rebuild_ssl_context(state['_client_ssl_context'])\
             if state.get('_ssl_context') else None
         self.__dict__.update(state)
@@ -130,7 +124,8 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
             RuntimeError: if the server returns an error
         """
         return await self._joinable_queue.transact_async(
-            self._address, self._joinable_queue.ACTION_GET, payload=timeout, ssl_context=self._client_ssl_context
+            self._address, self._joinable_queue.ACTION_GET, payload=timeout, ssl_context=self._client_ssl_context,
+            timeout=timeout
         )
 
     async def join(self, timeout: float | None = None) -> None:
@@ -144,6 +139,7 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
             RuntimeError: if the server returns an error
         """
         if await self._joinable_queue.transact_async(
-            self._address, self._joinable_queue.ACTION_JOIN, payload=timeout, ssl_context=self._client_ssl_context
+            self._address, self._joinable_queue.ACTION_JOIN, payload=timeout, ssl_context=self._client_ssl_context,
+            timeout=timeout
         ) != 0:
             raise RuntimeError("Failed to join joinable queue server")

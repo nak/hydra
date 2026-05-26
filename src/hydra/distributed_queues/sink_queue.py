@@ -63,8 +63,8 @@ class SinkQueueFeed(Feed[T]):
         if self._closed:
             raise RuntimeError("Queue is closed and cannot put items")
         if self._joinable_queue.transact(
-            self._address, self._joinable_queue.ACTION_PUT, (item, timeout),
-            timeout_io=self._joinable_queue.TIMEOUT_SOCKET_IO, ssl_context=self._ssl_context
+            self._address, self._joinable_queue.ACTION_PUT, (item, timeout), timeout=timeout,
+            ssl_context=self._ssl_context
         ) != 0:
             raise RuntimeError("Failed to put data to joinable queue server")
 
@@ -127,8 +127,10 @@ class SinkQueueConsumer(Generic[T, S], SinkConsumer[T]):
             QueueEmpty: if not item is available in queue in time
             RuntimeError: if the server returns an error
         """
-        return self._joinable_queue.transact(self._address, self._joinable_queue.ACTION_GET, payload=timeout,
-                                             ssl_context=self._client_ssl_context)
+        return self._joinable_queue.transact(
+            self._address, self._joinable_queue.ACTION_GET, payload=timeout, timeout=timeout,
+            ssl_context=self._client_ssl_context
+        )
 
     def join(self, timeout: float | None = None) -> None:
         """

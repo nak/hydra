@@ -141,7 +141,7 @@ class SourceQueueFeed(SourceFeed[T]):
         """
         if self._joinable_queue.transact(
             self._address, self._joinable_queue.ACTION_PUT, (item, timeout),
-            timeout_io=self._joinable_queue.TIMEOUT_SOCKET_IO, ssl_context=self._client_ssl_context
+            timeout=self._joinable_queue.TIMEOUT_SOCKET_IO, ssl_context=self._client_ssl_context
         ) != 0:
             raise RuntimeError("Failed to put data to joinable queue server")
 
