@@ -24,7 +24,7 @@ def test_server_and_client_sync_queue(free_port: int, signed_client, signed_serv
         client_ssl_context.load_cert_chain(certfile=client_pem, keyfile=client_key)
         server_ssl_context.load_verify_locations(cafile=ca_pem)  # Trust the server cert
         server_ssl_context.load_cert_chain(certfile=server_pem, keyfile=server_key)
-    with SourceQueueFeed(name="pytest_server", address=(localhost, free_port), size=10, ssl_context=client_ssl_context)\
+    with SourceQueueFeed(address=(localhost, free_port), size=10, ssl_context=client_ssl_context)\
             .start(server_ssl_context) as server_queue:
       with SourceQueueConsumer(name="pytest_client", address=(localhost, free_port),
                                ssl_context=client_ssl_context) as client_queue:
@@ -57,16 +57,14 @@ def test_pickle_source_queue_feed_no_ssl(free_port: int):
     import pickle
     from hydra.distributed_queues.source_queue import SourceQueueFeed
 
-    queue = SourceQueueFeed(name="pytest_client", address=('127.0.0.1', free_port), size=10)
+    queue = SourceQueueFeed(address=('127.0.0.1', free_port), size=10)
     data = pickle.dumps(queue)
     obj: SourceQueueFeed = pickle.loads(data)
-    assert obj._name == queue._name
     assert obj._client_ssl_context == queue._client_ssl_context
     assert obj._address == queue._address
     queue._client_ssl_context = ssl.create_default_context()
     data = pickle.dumps(queue)
     obj: SourceQueueFeed = pickle.loads(data)
-    assert obj._name == queue._name
     assert extract_ssl_context_info(obj._client_ssl_context) == extract_ssl_context_info(queue._client_ssl_context)
     assert obj._address == queue._address
 
@@ -75,11 +73,10 @@ def test_pickle_sink_queue_consumer_with_ssl(free_port: int):
     import pickle
     from hydra.distributed_queues.sink_queue import SinkQueueConsumer
 
-    queue = SinkQueueConsumer(name="pytest_client", address=('127.0.0.1', free_port), sentinel="done")
+    queue = SinkQueueConsumer(address=('127.0.0.1', free_port), sentinel="done")
     queue._client_ssl_context = ssl.create_default_context()
     data = pickle.dumps(queue)
     obj: SinkQueueConsumer = pickle.loads(data)
-    assert obj._name == queue._name
     assert isinstance(obj._client_ssl_context, ssl.SSLContext)
     assert extract_ssl_context_info(obj._client_ssl_context) == extract_ssl_context_info(queue._client_ssl_context)
     assert obj._address == queue._address

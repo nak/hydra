@@ -102,9 +102,8 @@ class AsyncSourceQueueFeed(AsyncSourceFeed[T]):
     A joinable queue that can be used as a source to put items to be processed by multiple remote clients
 
     """
-    def __init__(self, name: str, address: tuple[str, int], size: int, ssl_context: ssl.SSLContext | None = None):
+    def __init__(self, address: tuple[str, int], size: int, ssl_context: ssl.SSLContext | None = None):
         super().__init__()
-        self._name = name
         self._address = address
         self._client_ssl_context = ssl_context
         self._joinable_queue = SourceJoinableQueue[T, None](address=address, size=size)
@@ -123,7 +122,7 @@ class AsyncSourceQueueFeed(AsyncSourceFeed[T]):
         Return only what a client queue needs to connect to the server, not the internal state of the queue/server.
         """
         return {
-            '_name': self._name, '_address': self._address,
+            '_address': self._address,
             '_client_ssl_context': hydra.ssl_contexts.extract_ssl_context_info(self._client_ssl_context)
             if self._client_ssl_context else None,
         }

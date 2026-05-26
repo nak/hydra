@@ -24,7 +24,7 @@ def test_server_and_client_sync_queue(free_port: int, signed_client, signed_serv
         client_ssl_context.load_cert_chain(certfile=client_pem, keyfile=client_key)
         server_ssl_context.load_verify_locations(cafile=ca_pem)  # Trust the server cert
         server_ssl_context.load_cert_chain(certfile=server_pem, keyfile=server_key)
-    with SinkQueueConsumer[int, str](name="pytest_server", address=(localhost, free_port), sentinel="done", size=10,
+    with SinkQueueConsumer[int, str](address=(localhost, free_port), sentinel="done", size=10,
                                      ssl_context=client_ssl_context).start(server_ssl_context) as server_queue:
         with SinkQueueFeed(name="pytest_client", address=(localhost, free_port), sentinel="done",
                            ssl_context=client_ssl_context) as client_queue:
@@ -59,7 +59,7 @@ def test_pickle_sink_queue_feed_no_ssl(free_port: int):
     assert obj._ssl_context == queue._ssl_context
     assert obj._closed == queue._closed
     assert obj._address == queue._address
-    assert obj._ssl_context == None
+    assert obj._ssl_context is None
     queue._ssl_context = ssl.create_default_context()
     data = pickle.dumps(queue)
     obj: SinkQueueFeed = pickle.loads(data)
@@ -73,11 +73,10 @@ def test_pickle_sink_queue_consumer_with_ssl(free_port: int):
     import pickle
     from hydra.distributed_queues.sink_queue import SinkQueueConsumer
 
-    queue = SinkQueueConsumer(name="pytest_client", address=('127.0.0.1', free_port), sentinel="done")
+    queue = SinkQueueConsumer(address=('127.0.0.1', free_port), sentinel="done")
     queue._client_ssl_context = ssl.create_default_context()
     data = pickle.dumps(queue)
     obj: SinkQueueConsumer = pickle.loads(data)
-    assert obj._name == queue._name
     assert isinstance(obj._client_ssl_context, ssl.SSLContext)
     assert extract_ssl_context_info(obj._client_ssl_context) == extract_ssl_context_info(queue._client_ssl_context)
     assert obj._address == queue._address

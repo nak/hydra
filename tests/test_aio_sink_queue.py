@@ -25,7 +25,7 @@ async def test_server_and_client_async_queue(free_port: int, signed_client, sign
         client_ssl_context.load_cert_chain(certfile=client_pem, keyfile=client_key)
         server_ssl_context.load_verify_locations(cafile=ca_pem)  # Trust the server cert
         server_ssl_context.load_cert_chain(certfile=server_pem, keyfile=server_key)
-    async with AsyncSinkQueueConsumer[int, str](name="pytest_server", address=(localhost, free_port), sentinel="done", size=10,
+    async with AsyncSinkQueueConsumer[int, str](address=(localhost, free_port), sentinel="done", size=10,
                                                 ssl_context=client_ssl_context).start(server_ssl_context) as server_queue:
       async with AsyncSinkQueueFeed[int](name="pytest_client", address=(localhost, free_port), sentinel="done",
                                          ssl_context=client_ssl_context) as client_queue:
@@ -69,7 +69,7 @@ async def test_server_and_client_async_queue_with_delay(free_port: int, signed_c
         return await asyncio.queues.Queue.get(self, *args, **kwargs)
 
     with patch("asyncio.queues.Queue.get", mock_get):
-        async with AsyncSinkQueueConsumer[int, str](name="pytest_server", address=(localhost, free_port), sentinel="done", size=10,
+        async with AsyncSinkQueueConsumer[int, str](address=(localhost, free_port), sentinel="done", size=10,
                                                     ssl_context=client_ssl_context).start(server_ssl_context) as server_queue:
             async with AsyncSinkQueueFeed[int](name="pytest_client", address=(localhost, free_port), sentinel="done",
                                                ssl_context=client_ssl_context) as client_queue:

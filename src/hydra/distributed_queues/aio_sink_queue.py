@@ -79,10 +79,8 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
     Joinable queue that can be used as a sink for items to be processed from multiple remote clients
     """
 
-    def __init__(self, name: str, address: tuple[str, int], sentinel: S, size: int = 0,
-                 ssl_context: ssl.SSLContext | None = None):
+    def __init__(self, address: tuple[str, int], sentinel: S, size: int = 0, ssl_context: ssl.SSLContext | None = None):
         super().__init__()
-        self._name = name
         self._address = address
         self._client_ssl_context = ssl_context
         self._joinable_queue = SinkJoinableQueue[T, S](address=address, sentinel=sentinel, size=size)
@@ -105,7 +103,7 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
         """
         client_ssl_dict = hydra.ssl_contexts.extract_ssl_context_info(self._client_ssl_context)\
             if self._client_ssl_context else None
-        return {'_name': self._name, '_address': self._address, '_client_ssl_context': client_ssl_dict}
+        return {'_address': self._address, '_client_ssl_context': client_ssl_dict}
 
     def __setstate__(self, state):
         state['_client_ssl_context'] = hydra.ssl_contexts.rebuild_ssl_context(state['_client_ssl_context'])\
