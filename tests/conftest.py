@@ -1,12 +1,18 @@
-import shutil
+import platform
 import socket
 import subprocess
-import sys
-import tempfile
 from contextlib import closing
 from pathlib import Path
 
 import pytest
+import sys
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))  # Ensure src/ is in the path for imports
+
+if platform.system() == 'Windows':
+    openssl = 'openssl.exe'
+else:
+    openssl = 'openssl'
 
 
 def find_free_port():
@@ -29,11 +35,11 @@ def ca_credentials(tmp_path_factory):
     ca_pem = tmp_dir / "ca.pem"
 
     # 1. Generate local CA Root
-    cmd1 = f"openssl genrsa -out {ca_key} 4096"
-    subprocess.run(cmd1, shell=True, check=True)
+    args1 = f"genrsa -out {ca_key} 4096".split()
+    subprocess.run([openssl] + args1, shell=False, check=True)
 
-    cmd2 = f"openssl req -x509 -new -nodes -key {ca_key} -sha256 -days 10 -out {ca_pem} -subj '/CN=MyLocalCA'"
-    subprocess.run(cmd2, shell=True, check=True)
+    args2 = f"req -x509 -new -nodes -key {ca_key} -sha256 -days 1 -out {ca_pem} -subj /CN=MyLocalCA".split()
+    subprocess.run([openssl] + args2, shell=False, check=True)
 
     yield ca_pem, ca_key
 
@@ -48,12 +54,13 @@ def signed_server(ca_credentials):
     server_pem = base_dir / "server.pem"
 
     # 2. Generate and Sign Server credentials
-    subprocess.run(f"openssl genrsa -out {server_key} 2048", shell=True, check=True)
-    subprocess.run(f"openssl req -new -key {server_key} -out {server_csr} -subj '/CN=localhost'", shell=True,
+    subprocess.run([openssl] + f"genrsa -out {server_key} 2048".split(), shell=False, check=True)
+    assert server_key.exists(), f"Expected server key file to be created at {server_key}, but it does not exist."
+    subprocess.run([openssl] + f"req -new -key {server_key} -out {server_csr} -subj /CN=localhost".split(), shell=False,
                    check=True)
-    subprocess.run(
-        f"openssl x509 -req -in {server_csr} -CA {ca_pem} -CAkey {ca_key} -CAcreateserial -out {server_pem} -days 1 -sha256",
-        shell=True, check=True)
+    subprocess.run([openssl] +
+        f"x509 -req -in {server_csr} -CA {ca_pem} -CAkey {ca_key} -CAcreateserial -out {server_pem} -days 1 -sha256".split(),
+        shell=False, check=True)
 
     # CRITICAL: Use yield, not return, for proper fixture lifecycle state stability
     yield server_pem, server_key, ca_pem
@@ -69,11 +76,11 @@ def signed_client(ca_credentials):
     client_pem = base_dir / "client.pem"
 
     # 3. Generate and Sign Client credentials (using cl.srl to avoid serial collisions)
-    subprocess.run(f"openssl genrsa -out {client_key} 2048", shell=True, check=True)
-    subprocess.run(f"openssl req -new -key {client_key} -out {client_csr} -subj '/CN=MyClientApp'", shell=True,
+    subprocess.run([openssl] + f"genrsa -out {client_key} 2048".split(), shell=False, check=True)
+    subprocess.run([openssl] + f"req -new -key {client_key} -out {client_csr} -subj /CN=MyClientApp".split(), shell=False,
                    check=True)
-    subprocess.run(
-        f"openssl x509 -req -in {client_csr} -CA {ca_pem} -CAkey {ca_key} -CAserial {base_dir}/cl.srl -CAcreateserial -out {client_pem} -days 1 -sha256",
-        shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    subprocess.run([openssl] +
+        f"x509 -req -in {client_csr} -CA {ca_pem} -CAkey {ca_key} -CAserial {base_dir}/cl.srl -CAcreateserial -out {client_pem} -days 1 -sha256".split(),
+        shell=False, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     yield client_pem, client_key, ca_pem
