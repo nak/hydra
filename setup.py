@@ -2,12 +2,11 @@ from pathlib import Path
 
 import setuptools
 
-VERSION = "1.0.3"
+VERSION = "1.0.5"
 
 requirements = []
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
-
 
 setuptools.setup(
     name='py-hydra',
@@ -18,7 +17,7 @@ setuptools.setup(
     package_dir={'': 'src'},
     package_data={'': []},
     include_package_data=True,
-    packages=setuptools.find_packages('src'),
+    packages=setuptools.find_namespace_packages('src'),
     entry_points={
     },
     long_description=long_description,

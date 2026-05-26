@@ -32,11 +32,14 @@ class SinkQueueFeed(Feed[T]):
         self._joinable_queue = SinkJoinableQueue[T, S](address=address, sentinel=sentinel, size=0)
 
     def __enter__(self):
-        self._joinable_queue.register(self._name, self._ssl_context)
+        self.connect()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+    def connect(self):
+        self._joinable_queue.register(self._name, self._ssl_context)
 
     def __getstate__(self) -> dict[str, object]:
         """

@@ -27,12 +27,15 @@ class AsyncSinkQueueFeed(AsyncFeed[T]):
         self._joinable_queue = SinkJoinableQueue[T, S](address=address, sentinel=sentinel)
 
     async def __aenter__(self):
-        await self._joinable_queue.register_async(self._name, self._ssl_context)
-        self._closed = False
+        await self.connect()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
+
+    async def connect(self):
+        await self._joinable_queue.register_async(self._name, self._ssl_context)
+        self._closed = False
 
     def __getstate__(self) -> dict[str, object]:
         """

@@ -25,12 +25,15 @@ class SourceQueueConsumer(Consumer[T]):
         self._joinable_queue = SourceJoinableQueue[T, None](address=address, size=0)
 
     def __enter__(self):
-        self._closed = False
+        self.connect()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
-        self._closed = True
+
+    def connect(self):
+        self._joinable_queue.register(self._name, self._ssl_context)
+        self._closed = False
 
     def __getstate__(self) -> dict[str, object]:
         """
@@ -90,6 +93,7 @@ class SourceQueueConsumer(Consumer[T]):
         """
         Close the connection to the remote queue.
         """
+        self._joinable_queue.unregister_async(self._name, self._ssl_context)
         self._closed = True
 
 

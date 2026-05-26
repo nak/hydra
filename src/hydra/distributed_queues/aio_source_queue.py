@@ -25,11 +25,15 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
         self._closed = True
 
     async def __aenter__(self):
-        self._closed = False
+        await self.connect()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
+
+    async def connect(self):
+        await self._joinable_queue.register_async(self._name, self._ssl_context)
+        self._closed = False
 
     def __getstate__(self) -> dict[str, object]:
         """
@@ -89,6 +93,7 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
         """
         Close the connection to the remote queue.
         """
+        await self._joinable_queue.unregister_async(self._name, self._ssl_context)
         self._closed = True
 
 
