@@ -2,6 +2,7 @@
 #  This code may not be used for training AI or similar models without explicit consent from the author.
 import asyncio
 import ssl
+from unittest.mock import patch
 
 import pytest
 
@@ -44,6 +45,44 @@ async def test_server_and_client_async_queue(free_port: int, signed_client, sign
             await server_queue.join(timeout=0.1)
 
       await server_queue.join(timeout=0.1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ssl_contexts", [(ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER),
+                                           ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)), None])
+async def test_server_and_client_async_queue_with_delay(free_port: int, signed_client, signed_server, ssl_contexts: tuple[ssl.SSLContext, ssl.SSLContext]):
+    from hydra.distributed_queues.aio_sink_queue import AsyncSinkQueueConsumer, AsyncSinkQueueFeed
+
+    localhost = '127.0.0.1'
+    server_pem, server_key, ca_pem = signed_server
+    client_pem, client_key, _ = signed_client
+    server_ssl_context, client_ssl_context = ssl_contexts if ssl_contexts else (None, None)
+    if client_ssl_context:
+        client_ssl_context.check_hostname = False  # Disable for local/IP testing
+        client_ssl_context.load_verify_locations(cafile=ca_pem)  # Trust the server cert
+        client_ssl_context.load_cert_chain(certfile=client_pem, keyfile=client_key)
+        server_ssl_context.load_verify_locations(cafile=ca_pem)  # Trust the server cert
+        server_ssl_context.load_cert_chain(certfile=server_pem, keyfile=server_key)
+    async def mock_get(self, *args, **kwargs):
+        # will simulate server-side timeout based on logic below of 1 second timeout (leading to QueueEmpty),
+        await asyncio.sleep(5)
+        return await asyncio.queues.Queue.get(self, *args, **kwargs)
+
+    with patch("asyncio.queues.Queue.get", mock_get):
+        async with AsyncSinkQueueConsumer[int, str](name="pytest_server", address=(localhost, free_port), sentinel="done", size=10,
+                                                    ssl_context=client_ssl_context).start(server_ssl_context) as server_queue:
+            async with AsyncSinkQueueFeed[int](name="pytest_client", address=(localhost, free_port), sentinel="done",
+                                               ssl_context=client_ssl_context) as client_queue:
+
+                await client_queue.put(1)
+                with pytest.raises(asyncio.QueueEmpty):
+                    await server_queue.get(timeout=1)
+
+                with pytest.raises(asyncio.TimeoutError):
+                    await server_queue.join(timeout=0.1)
+
+            await server_queue.join(timeout=0.1)
+
 
 def test_pickle_async_sink_queue_feed_no_ssl(free_port: int):
     import pickle
