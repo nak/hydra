@@ -1,5 +1,6 @@
 import ssl
 
+
 def extract_ssl_context_info(context: ssl.SSLContext) -> dict:
     return {
         "protocol": context.protocol,
