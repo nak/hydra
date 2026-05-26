@@ -1,18 +1,18 @@
 #  Copyright (c) 2025.  John Rusnak.  All rights reserved.
 #  This code may not be used for training AI or similar models without explicit consent from the author.
 import ssl
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import TypeVar, Generic, AsyncGenerator
 
 import hydra.ssl_contexts
-from hydra.distributed_queues.aio_queue_api import AsyncFeed, AsyncConsumer
+from hydra.distributed_queues.aio_queue_api import AsyncSinkFeed, AsyncConsumer
 from hydra.distributed_queues.joinable_queue import SinkJoinableQueue
 
 T = TypeVar('T')
 S = TypeVar('S')
 
 
-class AsyncSinkQueueFeed(AsyncFeed[T]):
+class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
     """
     Joinable queue that can be used as a sink to put items to be processed by a remote queue/server.
     """
@@ -71,7 +71,9 @@ class AsyncSinkQueueFeed(AsyncFeed[T]):
         Close the connection to the remote queue.
         """
         if not self._closed:
-            await self._joinable_queue.unregister_async(self._name, ssl_context=self._ssl_context)
+            with suppress(ConnectionError):
+                await self._joinable_queue.unregister_async(self._name, ssl_context=self._ssl_context)
+        self._closed = True
 
 
 class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
@@ -93,9 +95,6 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
             yield self
         finally:
             self._joinable_queue.shutdown()
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        self._joinable_queue.shutdown()
 
     def __getstate__(self) -> dict[str, object]:
         """

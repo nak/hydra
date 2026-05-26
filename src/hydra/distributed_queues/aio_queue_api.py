@@ -55,13 +55,6 @@ class AsyncFeed(Protocol[T]):
         """
         raise NotImplementedError
 
-    @abstractmethod
-    async def close(self) -> None:
-        """
-        Close the connection to the remote queue.
-        """
-        raise NotImplementedError
-
 
 class AsyncSourceFeed(AsyncFeed[T]):
     """
@@ -72,5 +65,18 @@ class AsyncSourceFeed(AsyncFeed[T]):
     async def join(self) -> None:
         """
         Wait for all tasks to be done.
+        """
+        raise NotImplementedError
+
+
+class AsyncSinkFeed(AsyncFeed[T]):
+    """
+    A consumer that can be used to process messages from a remote queue and notify when tasks are done. "
+    """
+
+    @abstractmethod
+    async def close(self) -> None:
+        """
+        Close the connection to the remote queue.
         """
         raise NotImplementedError

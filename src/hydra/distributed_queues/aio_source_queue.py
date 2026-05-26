@@ -161,9 +161,3 @@ class AsyncSourceQueueFeed(AsyncSourceFeed[T]):
             timeout=timeout
         ) != 0:
             raise RuntimeError("Failed to join joinable queue server")
-
-    async def close(self) -> None:
-        """
-        Close the connection to the remote queue.
-        """
-        self._joinable_queue.shutdown()
