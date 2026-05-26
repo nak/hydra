@@ -7,6 +7,8 @@ import logging
 import os
 import pickle
 import socket
+import ssl
+import struct
 import sys
 import threading
 from contextlib import suppress
@@ -25,13 +27,26 @@ logger.setLevel(os.getenv("PYTEST_MPROC_LOG_LEVEL", "WARNING").upper())
 logger.addHandler(logging.StreamHandler())
 
 
+def _recv_all(sock, n):
+    """Helper function to receive exactly n bytes or return None if EOF is hit."""
+    data = bytearray()
+    while len(data) < n:
+        packet = sock.recv(n - len(data))
+        if not packet:
+            raise ConnectionError("Socket connection closed while trying to receive data."
+                                  "If  you are using SSL, ensure that your are passing ssl context for server on start"
+                                  " and client ssl context on __init__")
+        data.extend(packet)
+    return data
+
+
 class _BaseJoinableQueue(Generic[T, S]):
     """
     Base class for joinable queues.
     """
     TIMEOUT_CONNECT = 10  # seconds
     TIMEOUT_SOCKET_IO = 10  # seconds
-    _MAX_PACKET_SIZE = 2 * 4096  # bytes
+    _MAX_PACKET_SIZE = 1024  # bytes
     _MAX_CLIENT_Q_SIZE = 100  # max depth of client queues
 
     ACTION_GET = "GET"
@@ -74,11 +89,12 @@ class _BaseJoinableQueue(Generic[T, S]):
             reader: The stream reader for incoming data.
             writer: The stream writer for sending data.
         """
-        request_bytes = b''
-        while packet := await reader.read(self._MAX_PACKET_SIZE):
-            request_bytes += packet
+        packet_size = struct.unpack("!L", await reader.readexactly(4))[0]
+        request_bytes = await reader.readexactly(packet_size)
         if not request_bytes:
-            writer.write(pickle.dumps(RuntimeError("Empty request received.")))
+            data = pickle.dumps(RuntimeError("Empty request received."))
+            writer.write(struct.pack("!L", len(data)))
+            writer.write(data)
             await writer.drain()
             writer.close()
             return
@@ -109,11 +125,12 @@ class _BaseJoinableQueue(Generic[T, S]):
             response_bytes = pickle.dumps(e)
         finally:
             if response_bytes is None:
-                writer.write(pickle.dumps(RuntimeError("No response generated for request.")))
-            else:
-                writer.write(response_bytes)
+                response_bytes = pickle.dumps(RuntimeError("No response generated for request."))
+            writer.write(struct.pack("!L", len(response_bytes)))
+            writer.write(response_bytes)
             await writer.drain()
             writer.close()
+            await writer.wait_closed()
 
     async def _take_action(self, queue: asyncio.Queue[T | S], action: str, payload: T | S) -> bytes:
         """
@@ -206,7 +223,7 @@ class _BaseJoinableQueue(Generic[T, S]):
             self._cleanup_sem.release()
             self._cleanup_sem = None
 
-    async def _serve(self, start_sem: threading.Semaphore | asyncio.Semaphore):
+    async def _serve(self, start_sem: threading.Semaphore | asyncio.Semaphore, context: ssl.SSLContext | None):
         """
         Start the joinable queue server.
         """
@@ -217,7 +234,8 @@ class _BaseJoinableQueue(Generic[T, S]):
         async def handle_request_bound(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
             await self._handle_request(reader, writer, queue)
 
-        transport = await asyncio.start_server(handle_request_bound, host=self._address[0], port=self._address[1],)
+        transport = await asyncio.start_server(handle_request_bound, host=self._address[0], port=self._address[1],
+                                               ssl=context)
         start_sem.release()
         # Must implement polling on threading.Semaphore as an asyncio.Semaphore cannot be used across different threads
         while not self._shutdown_sem.acquire(blocking=False):
@@ -231,29 +249,29 @@ class _BaseJoinableQueue(Generic[T, S]):
         transport.close()
         self._cleanup_sem.release()
 
-    def start(self) -> threading.Thread:
+    def start(self, ssl_context: ssl.SSLContext | None) -> threading.Thread:
         """
         Start the joinable queue server in a separate thread.
         """
         start_sem = threading.Semaphore(0)
         thread = threading.Thread(target=asyncio.run,
-                                  args=(self._serve(start_sem),))
+                                  args=(self._serve(start_sem, ssl_context),))
         thread.start()
         start_sem.acquire(blocking=True)
         return thread
 
-    async def start_async(self) -> asyncio.Task:
+    async def start_async(self, ssl_context: ssl.SSLContext | None) -> asyncio.Task:
         """
         Start the joinable queue server in a separate thread.
         """
         start_sem = asyncio.Semaphore(0)
-        task = asyncio.create_task(self._serve(start_sem))
+        task = asyncio.create_task(self._serve(start_sem, ssl_context))
         await start_sem.acquire()
         return task
 
     @classmethod
-    def transact(cls, address: tuple[str, int], action: str, payload: T | S,  timeout_io: float | None = None)\
-            -> int | T | S:
+    def transact(cls, address: tuple[str, int], action: str, payload: T | S, ssl_context: ssl.SSLContext | None,
+                 timeout_io: float | None = None) -> int | T | S:
         """
         Perform a transaction with the joinable queue server.
 
@@ -262,24 +280,30 @@ class _BaseJoinableQueue(Generic[T, S]):
             action: The action to perform (GET, PUT, JOIN, TASK_DONE, REGISTER).
             payload: The payload associated with the action.
             timeout_io: The timeout for the transaction.
-
+            ssl_context: optional SSL context
         Returns:
             The response bytes from the server.
         """
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setblocking(False)
         sock.settimeout(timeout_io)
         try:
             sock.connect(address)
         except TimeoutError:
             raise TimeoutError(f"Timeout connecting to {address} after {timeout_io} seconds")
+        if ssl_context is not None:
+            with ssl_context.wrap_socket(sock, server_hostname=address[0]) as ssock:
+                return cls.transact_sock(action, payload, sock=ssock)
+        else:
+            return cls.transact_sock(action, payload, sock=sock)
+
+    @classmethod
+    def transact_sock(cls,  action: str, payload: T | S,  sock: socket.socket) -> int | T | S:
         try:
             data = pickle.dumps((action, payload))
+            sock.sendall(struct.pack("!L", len(data)))
             sock.sendall(data)
-            sock.shutdown(socket.SHUT_WR)
-            result_bytes = b''
-            while packet := sock.recv(cls._MAX_PACKET_SIZE):
-                result_bytes += packet
+            size = struct.unpack("!L", _recv_all(sock, 4))[0]
+            result_bytes = _recv_all(sock, size)
             return cls._process_response(result_bytes, action)
         except (asyncio.exceptions.TimeoutError, TimeoutError):
             raise TimeoutError("Timeout waiting for response from server")
@@ -309,7 +333,8 @@ class _BaseJoinableQueue(Generic[T, S]):
             raise ConnectionError("No response received from server")
 
     async def transact_async(self, address: tuple[str, int], action: str, payload: T | S,
-                             timeout_io: float | None = TIMEOUT_SOCKET_IO) -> int | T | S:
+                             timeout_io: float | None = TIMEOUT_SOCKET_IO,
+                             ssl_context: ssl.SSLContext | None = None) -> int | T | S:
         """
         Perform an asynchronous transaction with the joinable queue server.
 
@@ -322,51 +347,57 @@ class _BaseJoinableQueue(Generic[T, S]):
         Returns:
             The response from the server.
         """
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setblocking(False)
         try:
-            await asyncio.wait_for(asyncio.get_event_loop().sock_connect(sock, address), timeout=timeout_io)
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(*address, ssl=ssl_context, server_hostname=address[0] if ssl_context else None),
+                timeout=timeout_io
+            )
         except asyncio.exceptions.TimeoutError:
             print("Timeout trying to connect to server", file=sys.stderr)
             raise
+        return await self.transact_sock_async(action, payload, timeout=timeout_io,
+                                              reader=reader, writer=writer)
+
+    async def transact_sock_async(self, action: str, payload: T | S, timeout: float | None,
+                                  reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> int | T | S:
         try:
             data = pickle.dumps((action, payload))
-            await asyncio.wait_for(asyncio.get_event_loop().sock_sendall(sock, data), timeout=timeout_io)
-            sock.shutdown(socket.SHUT_WR)
-            result_bytes = b''
-            while packet := await asyncio.get_event_loop().sock_recv(sock, self._MAX_PACKET_SIZE):
-                result_bytes += packet
+            writer.write(struct.pack("!L", len(data)))
+            writer.write(data)
+            await writer.drain()
+            result_size = struct.unpack("!L", await reader.readexactly(4))[0]
+            result_bytes = await asyncio.wait_for(reader.readexactly(result_size), timeout=timeout)
             return self._process_response(result_bytes, action)
         except (asyncio.exceptions.TimeoutError, TimeoutError):
-            raise TimeoutError("Timeout waiting for response from server")
+            raise asyncio.exceptions.TimeoutError("Timeout waiting for response from server")
         finally:
             with suppress(Exception):
-                sock.shutdown(socket.SHUT_WR)
-            with suppress(Exception):
-                sock.shutdown(socket.SHUT_RD)
-            sock.close()
+                writer.close()
+                await writer.wait_closed()
 
-    def register(self, client_id: str) -> None:
+    def register(self, client_id: str, ssl_context: ssl.SSLContext | None) -> None:
         """
         Register a new client with the joinable queue server.
 
         Raises:
             RuntimeError: if the server returns an error
         """
-        if self.transact(self._address, self.ACTION_REGISTER, client_id, timeout_io=self.TIMEOUT_SOCKET_IO) != 0:
+        if self.transact(self._address, self.ACTION_REGISTER, client_id, timeout_io=self.TIMEOUT_SOCKET_IO,
+                         ssl_context=ssl_context) != 0:
             raise RuntimeError(f"Failed to register client {client_id} with joinable queue server")
 
-    def unregister(self, client_id: str) -> None:
+    def unregister(self, client_id: str,  ssl_context: ssl.SSLContext | None) -> None:
         """
         Register a new client with the joinable queue server.
 
         Raises:
             RuntimeError: if the server returns an error
         """
-        if self.transact(self._address, self.ACTION_UNREGISTER, client_id, timeout_io=self.TIMEOUT_SOCKET_IO) != 0:
+        if self.transact(self._address, self.ACTION_UNREGISTER, client_id, timeout_io=self.TIMEOUT_SOCKET_IO,
+                         ssl_context=ssl_context) != 0:
             raise RuntimeError(f"Failed to register client {client_id} with joinable queue server")
 
-    async def unregister_async(self, client_id: str) -> None:
+    async def unregister_async(self, client_id: str,  ssl_context: ssl.SSLContext | None) -> None:
         """
         Register a new client with the joinable queue server.
 
@@ -374,11 +405,12 @@ class _BaseJoinableQueue(Generic[T, S]):
             RuntimeError: if the server returns an error
         """
         if await self.transact_async(
-            self._address, self.ACTION_UNREGISTER, client_id, timeout_io=self.TIMEOUT_SOCKET_IO
+            self._address, self.ACTION_UNREGISTER, client_id, timeout_io=self.TIMEOUT_SOCKET_IO,
+            ssl_context=ssl_context
         ) != 0:
             raise RuntimeError(f"Failed to register client {client_id} with joinable queue server")
 
-    async def register_async(self, client_id: str) -> None:
+    async def register_async(self, client_id: str, ssl_context: ssl.SSLContext | None) -> None:
         """
         Register a new client with the joinable queue server.
 
@@ -386,7 +418,8 @@ class _BaseJoinableQueue(Generic[T, S]):
             RuntimeError: if the server returns an error
         """
         if await self.transact_async(
-            self._address, self.ACTION_REGISTER, client_id, timeout_io=self.TIMEOUT_SOCKET_IO
+            self._address, self.ACTION_REGISTER, client_id, timeout_io=self.TIMEOUT_SOCKET_IO,
+            ssl_context=ssl_context
         ) != 0:
             raise RuntimeError(f"Failed to register client {client_id} with joinable queue server")
 
