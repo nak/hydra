@@ -239,18 +239,21 @@ class _BaseJoinableQueue(Generic[T, S]):
         transport = await asyncio.start_server(handle_request_bound, host=self._address[0], port=self._address[1],
                                                ssl=context)
         start_sem.release()
-        # Must implement polling on threading.Semaphore as an asyncio.Semaphore cannot be used across different threads
-        while not self._shutdown_sem.acquire(blocking=False):
-            await asyncio.sleep(1)
-        # drain the queue
-        while not queue.empty():
-            item = queue.get_nowait()
-            logger.error(">> WARNING: Item still in queue during shutdown: %s", item)
-            queue.task_done()
-
-        transport.close()
-        if self._cleanup_sem is not None:
-            self._cleanup_sem.release()
+        try:
+            # Must implement polling on threading.Semaphore as an asyncio.Semaphore cannot be used across different
+            # threads
+            while not self._shutdown_sem.acquire(blocking=False):
+                await asyncio.sleep(1)
+            # drain the queue
+            while not queue.empty():
+                item = queue.get_nowait()
+                logger.error(">> WARNING: Item still in queue during shutdown: %s", item)
+                queue.task_done()
+        finally:
+            transport.close()
+            await transport.wait_closed()
+            if self._cleanup_sem is not None:
+                self._cleanup_sem.release()
 
     def start(self, ssl_context: ssl.SSLContext | None) -> threading.Thread:
         """

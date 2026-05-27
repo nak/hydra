@@ -3,7 +3,7 @@
 import logging
 import os
 import ssl
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from typing import TypeVar, Generic, Generator
 
 import hydra.ssl_contexts
@@ -40,6 +40,7 @@ class SinkQueueFeed(Feed[T]):
 
     def connect(self):
         self._joinable_queue.register(self._name, self._ssl_context)
+        self._closed = False
 
     def __getstate__(self) -> dict[str, object]:
         """
@@ -75,8 +76,9 @@ class SinkQueueFeed(Feed[T]):
         """
         Close the connection to the remote queue.
         """
-        if not self._closed and self._joinable_queue.unregister(self._name, ssl_context=self._ssl_context) != 0:
-            logger.error("Failed to send closure status to remote queue")
+        with suppress(TimeoutError, ConnectionError):
+            if not self._closed and self._joinable_queue.unregister(self._name, ssl_context=self._ssl_context) != 0:
+                logger.error("Failed to send closure status to remote queue")
         self._closed = True
 
 

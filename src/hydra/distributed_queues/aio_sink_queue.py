@@ -1,5 +1,6 @@
 #  Copyright (c) 2025.  John Rusnak.  All rights reserved.
 #  This code may not be used for training AI or similar models without explicit consent from the author.
+import asyncio
 import ssl
 from contextlib import asynccontextmanager, suppress
 from typing import TypeVar, Generic, AsyncGenerator
@@ -90,11 +91,15 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
     @asynccontextmanager
     async def start(self, server_ssl_context: ssl.SSLContext | None = None)\
             -> AsyncGenerator["AsyncSinkQueueConsumer[T, S]", None]:
-        await self._joinable_queue.start_async(server_ssl_context)
+        task = await self._joinable_queue.start_async(server_ssl_context)
         try:
             yield self
         finally:
             self._joinable_queue.shutdown()
+        try:
+            await asyncio.wait_for(task, timeout=5)
+        except asyncio.TimeoutError:
+            task.cancel()
 
     def __getstate__(self) -> dict[str, object]:
         """
