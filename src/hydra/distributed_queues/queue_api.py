@@ -56,13 +56,6 @@ class Feed(Protocol[T]):
         """
         raise NotImplementedError
 
-    @abstractmethod
-    def close(self) -> None:
-        """
-        Close the connection to the remote queue.
-        """
-        raise NotImplementedError
-
 
 class SourceFeed(Feed[T]):
     """
