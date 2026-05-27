@@ -11,10 +11,7 @@ def extract_ssl_context_info(context: ssl.SSLContext) -> dict:
     }
 
 
-def rebuild_ssl_context(info: dict) -> ssl.SSLContext:
-    # 1. Initialize a new context with the original protocol
-    context = ssl.SSLContext(info["protocol"])
-
+def rebuild_ssl_context(context: ssl.SSLContext, info: dict) -> ssl.SSLContext:
     # 2. Restore options and flags using bitwise OR
     context.options |= info["options"]
     context.verify_flags |= info["verify_flags"]

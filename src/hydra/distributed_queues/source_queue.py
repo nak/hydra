@@ -2,6 +2,7 @@
 #  This code may not be used for training AI or similar models without explicit consent from the author.
 import ssl
 from contextlib import contextmanager
+from pickle import PickleError
 from typing import TypeVar
 
 import hydra.ssl_contexts
@@ -15,6 +16,7 @@ class SourceQueueConsumer(Consumer[T]):
     """
     A consumer of items from a remote queue.
     """
+    _pickle_counter = 0
 
     def __init__(self, name: str, address: tuple[str, int], ssl_context: ssl.SSLContext | None = None):
         super().__init__()
@@ -52,9 +54,23 @@ class SourceQueueConsumer(Consumer[T]):
                 if self._ssl_context else None}
 
     def __setstate__(self, state):
-        state['_ssl_context'] = hydra.ssl_contexts.rebuild_ssl_context(state['_ssl_context'])\
-            if state.get('_ssl_context') else None
+        if state.get('_ssl_context'):
+            new_context = ssl.SSLContext(state['_ssl_context']['protocol'])
+            self._reload_certificates(new_context, state)
+        else:
+            new_context = None
+        self.__class__._pickle_counter += 1
+        state['_ssl_context'] = new_context
         self.__dict__.update(state)
+
+    def _reload_certificates(self, ssl_context: ssl.SSLContext, state: dict):
+        """
+        To be overridden in subclass if needed to apply proper SSL context when pickling/unpickling on
+        another host.  This implementation simply loads default certificate
+        s on the new context and then applies the SSL context info from the original context
+        """
+        ssl_context.load_default_certs()
+        hydra.ssl_contexts.rebuild_ssl_context(ssl_context, state['_ssl_context'])
 
     def get(self, timeout: float | None = None) -> T | None:
         """
@@ -135,16 +151,10 @@ class SourceQueueFeed(SourceFeed[T]):
             self._joinable_queue.shutdown()
 
     def __getstate__(self):
-        return {
-            '_address': self._address,
-            "_client_ssl_context": hydra.ssl_contexts.extract_ssl_context_info(self._client_ssl_context)
-            if self._client_ssl_context else None,
-        }
+        raise PickleError("SinkQueueConsumer is not intended to be pickled as it is a server-side consumer")
 
     def __setstate__(self, state):
-        state['_client_ssl_context'] = hydra.ssl_contexts.rebuild_ssl_context(state['_client_ssl_context'])\
-            if state.get('_client_ssl_context') else None
-        self.__dict__.update(state)
+        raise PickleError("SinkQueueConsumer is not intended to be pickled as it is a server-side consumer")
 
     def put(self, item: T, timeout: float | None = None) -> None:
         """

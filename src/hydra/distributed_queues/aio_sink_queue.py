@@ -1,8 +1,10 @@
 #  Copyright (c) 2025.  John Rusnak.  All rights reserved.
 #  This code may not be used for training AI or similar models without explicit consent from the author.
 import asyncio
+import os
 import ssl
 from contextlib import asynccontextmanager, suppress
+from pickle import PickleError
 from typing import TypeVar, Generic, AsyncGenerator
 
 import hydra.ssl_contexts
@@ -17,6 +19,7 @@ class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
     """
     Joinable queue that can be used as a sink to put items to be processed by a remote queue/server.
     """
+    _pickle_counter = 0
 
     def __init__(self, name: str, address: tuple[str, int], sentinel: S,
                  ssl_context: ssl.SSLContext | None = None):
@@ -26,6 +29,7 @@ class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
         self._closed = True
         self._ssl_context = ssl_context
         self._joinable_queue = SinkJoinableQueue[T, S](address=address, sentinel=sentinel)
+        self._pickle_task: asyncio.Task | None = None
 
     @property
     def address(self):
@@ -50,14 +54,39 @@ class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
         """
         Return only what a client queue needs to connect to the server, not the internal state of the queue/server.
         """
+        # ensure copy is registered uniquely
         return {'_name': self._name, '_address': self._address, '_closed': self._closed,
                 '_ssl_context': hydra.ssl_contexts.extract_ssl_context_info(self._ssl_context)
                 if self._ssl_context else None}
 
     def __setstate__(self, state) -> None:
-        state['_ssl_context'] = hydra.ssl_contexts.rebuild_ssl_context(state['_ssl_context']) \
-            if state.get('_ssl_context') else None
+        if state.get('_ssl_context'):
+            new_context = ssl.SSLContext(state['_ssl_context']['protocol'])
+            self._reload_certificates(new_context, state)
+        else:
+            new_context = None
+        self.__class__._pickle_counter += 1
+        state['_name'] = f"{state['_name']}-{state['_address'][0]}-{os.getpid()}-{self._pickle_counter}"
+        state['_ssl_context'] = new_context
+        state['_joinable_queue'] = SinkJoinableQueue(address=state['_address'], sentinel=None)
         self.__dict__.update(state)
+        if not self._closed:
+            try:
+                asyncio.get_running_loop()
+                # register if not closed to ensure unique registration and reflect proper state
+                self._pickle_task = \
+                    asyncio.create_task(self._joinable_queue.register_async(self._name, self._ssl_context))
+            except RuntimeError:
+                asyncio.run(self._joinable_queue.register_async(self._name, self._ssl_context))
+
+    def _reload_certificates(self, ssl_context: ssl.SSLContext, state: dict):
+        """
+        To be overridden in subclass if needed to apply proper SSL context when pickling/unpickling on
+        another host.  This implementation simply loads default certificate
+        s on the new context and then applies the SSL context info from the original context,
+        """
+        ssl_context.load_default_certs()
+        hydra.ssl_contexts.rebuild_ssl_context(ssl_context, state['_ssl_context'])
 
     async def put(self, item: T, timeout: float | None = None) -> None:
         """
@@ -68,6 +97,9 @@ class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
             timeout: The timeout for the transaction.
 
         """
+        if self._pickle_task:
+            await self._pickle_task
+            self._pickle_task = None
         if self._closed:
             raise RuntimeError("Queue is closed and cannot put items")
         if await self._joinable_queue.transact_async(
@@ -79,6 +111,9 @@ class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
         """
         Close the connection to the remote queue.
         """
+        if self._pickle_task:
+            await self._pickle_task
+            self._pickle_task = None
         if not self._closed:
             with suppress(ConnectionError):
                 await self._joinable_queue.unregister_async(self._name, ssl_context=self._ssl_context)
@@ -117,14 +152,10 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
         """
         Return only what a client queue needs to connect to the server, not the internal state of the queue/server.
         """
-        client_ssl_dict = hydra.ssl_contexts.extract_ssl_context_info(self._client_ssl_context)\
-            if self._client_ssl_context else None
-        return {'_address': self._address, '_client_ssl_context': client_ssl_dict}
+        raise PickleError("AsyncSinkQueueConsumer cannot be pickled as it is not to be duplicated")
 
     def __setstate__(self, state):
-        state['_client_ssl_context'] = hydra.ssl_contexts.rebuild_ssl_context(state['_client_ssl_context'])\
-            if state.get('_ssl_context') else None
-        self.__dict__.update(state)
+        raise PickleError("AsyncSinkQueueConsumer cannot be (un)pickled as it is not to be duplicated")
 
     async def get(self, timeout: float | None = None) -> T | S:
         """

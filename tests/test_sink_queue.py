@@ -2,6 +2,7 @@
 #  This code may not be used for training AI or similar models without explicit consent from the author.
 import asyncio
 import ssl
+from pickle import PickleError
 
 import pytest
 
@@ -75,8 +76,5 @@ def test_pickle_sink_queue_consumer_with_ssl(free_port: int):
 
     queue = SinkQueueConsumer(address=('127.0.0.1', free_port), sentinel="done")
     queue._client_ssl_context = ssl.create_default_context()
-    data = pickle.dumps(queue)
-    obj: SinkQueueConsumer = pickle.loads(data)
-    assert isinstance(obj._client_ssl_context, ssl.SSLContext)
-    assert extract_ssl_context_info(obj._client_ssl_context) == extract_ssl_context_info(queue._client_ssl_context)
-    assert obj._address == queue._address
+    with pytest.raises(PickleError):
+        data = pickle.dumps(queue)

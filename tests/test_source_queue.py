@@ -2,6 +2,7 @@
 #  This code may not be used for training AI or similar models without explicit consent from the author.
 import asyncio
 import ssl
+from pickle import PickleError
 
 import pytest
 
@@ -58,25 +59,18 @@ def test_pickle_source_queue_feed_no_ssl(free_port: int):
     from hydra.distributed_queues.source_queue import SourceQueueFeed
 
     queue = SourceQueueFeed(address=('127.0.0.1', free_port), size=10)
-    data = pickle.dumps(queue)
-    obj: SourceQueueFeed = pickle.loads(data)
-    assert obj._client_ssl_context == queue._client_ssl_context
-    assert obj._address == queue._address
-    queue._client_ssl_context = ssl.create_default_context()
-    data = pickle.dumps(queue)
-    obj: SourceQueueFeed = pickle.loads(data)
-    assert extract_ssl_context_info(obj._client_ssl_context) == extract_ssl_context_info(queue._client_ssl_context)
-    assert obj._address == queue._address
+    with pytest.raises(PickleError):
+        data = pickle.dumps(queue)
 
 
-def test_pickle_sink_queue_consumer_with_ssl(free_port: int):
+def test_pickle_source_queue_consumer_with_ssl(free_port: int):
     import pickle
-    from hydra.distributed_queues.sink_queue import SinkQueueConsumer
+    from hydra.distributed_queues.source_queue import SourceQueueConsumer
 
-    queue = SinkQueueConsumer(address=('127.0.0.1', free_port), sentinel="done")
-    queue._client_ssl_context = ssl.create_default_context()
+    queue = SourceQueueConsumer(name='pytest-consumer', address=('127.0.0.1', free_port))
+    queue._ssl_context = ssl.create_default_context()
     data = pickle.dumps(queue)
-    obj: SinkQueueConsumer = pickle.loads(data)
-    assert isinstance(obj._client_ssl_context, ssl.SSLContext)
-    assert extract_ssl_context_info(obj._client_ssl_context) == extract_ssl_context_info(queue._client_ssl_context)
+    obj: SourceQueueConsumer = pickle.loads(data)
+    assert isinstance(obj._ssl_context, ssl.SSLContext)
+    assert extract_ssl_context_info(obj._ssl_context) == extract_ssl_context_info(queue._ssl_context)
     assert obj._address == queue._address
