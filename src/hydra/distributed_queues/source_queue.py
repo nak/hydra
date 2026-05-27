@@ -24,6 +24,14 @@ class SourceQueueConsumer(Consumer[T]):
         self._ssl_context = ssl_context
         self._joinable_queue = SourceJoinableQueue[T, None](address=address, size=0)
 
+    @property
+    def address(self):
+        return self._address
+
+    @property
+    def name(self):
+        return self._name
+
     def __enter__(self):
         self.connect()
         return self
@@ -107,6 +115,10 @@ class SourceQueueFeed(SourceFeed[T]):
         self._address = address
         self._client_ssl_context = ssl_context
         self._joinable_queue = SourceJoinableQueue[T, None](address=address, size=size)
+
+    @property
+    def address(self):
+        return self._address
 
     @contextmanager
     def start(self, server_ssl_context: ssl.SSLContext | None = None):

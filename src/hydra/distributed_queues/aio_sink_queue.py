@@ -27,6 +27,14 @@ class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
         self._ssl_context = ssl_context
         self._joinable_queue = SinkJoinableQueue[T, S](address=address, sentinel=sentinel)
 
+    @property
+    def address(self):
+        return self._address
+
+    @property
+    def name(self):
+        return self._name
+
     async def __aenter__(self):
         await self.connect()
         return self
@@ -87,6 +95,10 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
         self._address = address
         self._client_ssl_context = ssl_context
         self._joinable_queue = SinkJoinableQueue[T, S](address=address, sentinel=sentinel, size=size)
+
+    @property
+    def address(self):
+        return self._address
 
     @asynccontextmanager
     async def start(self, server_ssl_context: ssl.SSLContext | None = None)\

@@ -31,6 +31,14 @@ class SinkQueueFeed(Feed[T]):
         self._ssl_context = ssl_context
         self._joinable_queue = SinkJoinableQueue[T, S](address=address, sentinel=sentinel, size=0)
 
+    @property
+    def address(self):
+        return self._address
+
+    @property
+    def name(self):
+        return self._name
+
     def __enter__(self):
         self.connect()
         return self
@@ -93,6 +101,10 @@ class SinkQueueConsumer(Generic[T, S], SinkConsumer[T]):
         self._address = address
         self._client_ssl_context = ssl_context
         self._joinable_queue = SinkJoinableQueue[T, S](address=address, sentinel=sentinel, size=size)
+
+    @property
+    def address(self):
+        return self._address
 
     @contextmanager
     def start(self, server_ssl_context: ssl.SSLContext) -> Generator["SinkQueueConsumer[T, S]", None, None]:
