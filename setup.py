@@ -2,7 +2,7 @@ from pathlib import Path
 
 import setuptools
 
-VERSION = "1.0.15"
+VERSION = "1.0.16"
 
 requirements = []
 with open("README.md", "r", encoding="utf-8") as fh:
