@@ -8,6 +8,7 @@ from pickle import PickleError
 from typing import TypeVar, Generic, Generator
 
 import hydra.ssl_contexts
+from hydra.distributed_queues.configuration import SSLCertificatesConfig
 from hydra.distributed_queues.joinable_queue import SinkJoinableQueue
 from hydra.distributed_queues.queue_api import Feed, SinkConsumer
 
@@ -49,6 +50,12 @@ class SinkQueueFeed(Feed[T]):
         self.close()
 
     def connect(self):
+        """
+        This connects to the server to register the feed.  The queue is not usable until this call is made,
+        which can also be done by using the queue as a context manager.  Note that the connection is closed
+        once the register with the server is complete.  All calls to eh API requiring a server transaction, connect
+        to ths server, perform the requested action, and the disconnects.
+        """
         self._joinable_queue.register(self._name, self._ssl_context)
         self._closed = False
 
@@ -63,25 +70,16 @@ class SinkQueueFeed(Feed[T]):
     def __setstate__(self, state):
         if state.get('_ssl_context'):
             new_context = ssl.SSLContext(state['_ssl_context']['protocol'])
-            self._reload_certificates(new_context, state)
+            SSLCertificatesConfig.reload_certificates(new_context, state['_ssl_context'])
         else:
             new_context = None
         self.__class__._pickle_counter += 1
         state['_ssl_context'] = new_context
         self.__dict__.update(state)
 
-    def _reload_certificates(self, ssl_context: ssl.SSLContext, state: dict):
-        """
-        To be overridden in subclass if needed to apply proper SSL context when pickling/unpickling on
-        another host.  This implementation simply loads default certificate
-        s on the new context and then applies the SSL context info from the original context
-        """
-        ssl_context.load_default_certs()
-        hydra.ssl_contexts.rebuild_ssl_context(ssl_context, state['_ssl_context'])
-
     def put(self, item: T, timeout: float | None = None) -> None:
         """
-        Post data to the joinable queue server.
+        Post data to the remote server sink-queue.
 
         Args:
             item: item to put in the queue.
@@ -98,7 +96,8 @@ class SinkQueueFeed(Feed[T]):
 
     def close(self):
         """
-        Close the connection to the remote queue.
+        Close the connection to the remote queue.  This instance cannot be used to invoke further APIs to the
+        remote queue until connect() is called (again).
         """
         with suppress(TimeoutError, ConnectionError):
             if not self._closed and self._joinable_queue.unregister(self._name, ssl_context=self._ssl_context) != 0:
@@ -124,6 +123,12 @@ class SinkQueueConsumer(Generic[T, S], SinkConsumer[T]):
 
     @contextmanager
     def start(self, server_ssl_context: ssl.SSLContext) -> Generator["SinkQueueConsumer[T, S]", None, None]:
+        """
+        Start a background task to serve the queue.
+
+        Args:
+            server_ssl_context: optional SSL context for the server.
+        """
         self._joinable_queue.start(server_ssl_context)
         try:
             yield self
@@ -160,7 +165,7 @@ class SinkQueueConsumer(Generic[T, S], SinkConsumer[T]):
 
     def join(self, timeout: float | None = None) -> None:
         """
-        Wait for all items in the queue to be processed.
+        Wait for all clients to disconnect (unregister) before returning
 
         Args:
             timeout: The timeout for the transaction.

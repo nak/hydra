@@ -6,6 +6,7 @@ from pickle import PickleError
 from typing import TypeVar
 
 import hydra.ssl_contexts
+from hydra.distributed_queues.configuration import SSLCertificatesConfig
 from hydra.distributed_queues.joinable_queue import SourceJoinableQueue
 from hydra.distributed_queues.queue_api import Consumer, SourceFeed
 
@@ -42,6 +43,12 @@ class SourceQueueConsumer(Consumer[T]):
         self.close()
 
     def connect(self):
+        """
+        This connects to the server to register the feed.  The queue is not usable until this call is made,
+        which can also be done by using the queue as a context manager.  Note that the connection is closed
+        once the register with the server is complete.  All calls to eh API requiring a server transaction, connect
+        to ths server, perform the requested action, and the disconnects.
+        """
         self._joinable_queue.register(self._name, self._ssl_context)
         self._closed = False
 
@@ -56,21 +63,12 @@ class SourceQueueConsumer(Consumer[T]):
     def __setstate__(self, state):
         if state.get('_ssl_context'):
             new_context = ssl.SSLContext(state['_ssl_context']['protocol'])
-            self._reload_certificates(new_context, state)
+            SSLCertificatesConfig.reload_certificates(new_context, state['_ssl_context'])
         else:
             new_context = None
         self.__class__._pickle_counter += 1
         state['_ssl_context'] = new_context
         self.__dict__.update(state)
-
-    def _reload_certificates(self, ssl_context: ssl.SSLContext, state: dict):
-        """
-        To be overridden in subclass if needed to apply proper SSL context when pickling/unpickling on
-        another host.  This implementation simply loads default certificate
-        s on the new context and then applies the SSL context info from the original context
-        """
-        ssl_context.load_default_certs()
-        hydra.ssl_contexts.rebuild_ssl_context(ssl_context, state['_ssl_context'])
 
     def get(self, timeout: float | None = None) -> T | None:
         """

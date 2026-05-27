@@ -118,6 +118,7 @@ def test_pickle_async_sink_queue_feed_with_ssl(free_port: int):
 async def test_pickling(free_port, signed_client, signed_server, ssl_contexts: tuple[ssl.SSLContext, ssl.SSLContext]):
     import pickle
     from hydra.distributed_queues.aio_sink_queue import AsyncSinkQueueConsumer, AsyncSinkQueueFeed
+    from hydra.distributed_queues.configuration import SSLCertificatesConfig
     AsyncSinkQueueFeed._pickle_counter = 0  # reset counter for test predictability
     localhost = '127.0.0.1'
     server_pem, server_key, ca_pem = signed_server
@@ -130,7 +131,7 @@ async def test_pickling(free_port, signed_client, signed_server, ssl_contexts: t
         server_ssl_context.load_verify_locations(cafile=ca_pem)  # Trust the server cert
         server_ssl_context.load_cert_chain(certfile=server_pem, keyfile=server_key)
 
-    def mock_reload_certificates(self, new_context, state):
+    def reload_certificates(new_context, state):
         # mock to avoid actually trying to load certs during unpickling which can cause issues in test environments
         new_context.check_hostname = False  # Disable for local/IP testing
         new_context.load_verify_locations(cafile=ca_pem)  # Trust the server cert
@@ -138,7 +139,7 @@ async def test_pickling(free_port, signed_client, signed_server, ssl_contexts: t
         new_context.load_verify_locations(cafile=ca_pem)  # Trust the server cert
         new_context.load_cert_chain(certfile=server_pem, keyfile=server_key)
 
-    AsyncSinkQueueFeed._reload_certificates = mock_reload_certificates  # patch the method for testing to avoid cert loading issues
+    SSLCertificatesConfig.set_reload_callback(reload_certificates)
 
     async with AsyncSinkQueueConsumer[int, str](address=(localhost, free_port), sentinel="done", size=10,
                                                 ssl_context=client_ssl_context).start(server_ssl_context) as server_queue:

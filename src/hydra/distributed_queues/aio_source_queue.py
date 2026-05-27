@@ -9,6 +9,7 @@ from typing import TypeVar, AsyncGenerator
 
 import hydra.ssl_contexts
 from hydra.distributed_queues.aio_queue_api import AsyncConsumer, AsyncSourceFeed
+from hydra.distributed_queues.configuration import SSLCertificatesConfig
 from hydra.distributed_queues.joinable_queue import SourceJoinableQueue, SinkJoinableQueue
 
 T = TypeVar('T')
@@ -45,6 +46,12 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
         await self.close()
 
     async def connect(self):
+        """
+        This connects to the server to register the feed.  The queue is not usable until this call is made,
+        which can also be done by using the queue as a context manager.  Note that the connection is closed
+        once the register with the server is complete.  All calls to eh API requiring a server transaction, connect
+        to ths server, perform the requested action, and the disconnects.
+        """
         await self._joinable_queue.register_async(self._name, self._ssl_context)
         self._closed = False
 
@@ -59,7 +66,7 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
     def __setstate__(self, state):
         if state.get('_ssl_context'):
             new_context = ssl.SSLContext(state['_ssl_context']['protocol'])
-            self._reload_certificates(new_context, state)
+            SSLCertificatesConfig.reload_certificates(new_context, state['_ssl_context'])
         else:
             new_context = None
         self.__class__._pickle_counter += 1
@@ -76,18 +83,9 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
             except RuntimeError:
                 asyncio.run(self._joinable_queue.register_async(self._name, self._ssl_context))
 
-    def _reload_certificates(self, ssl_context: ssl.SSLContext, state: dict):
-        """
-        To be overridden in subclass if needed to apply proper SSL context when pickling/unpickling on
-        another host.  This implementation simply loads default certificate
-        s on the new context and then applies the SSL context info from the original context,
-        """
-        ssl_context.load_default_certs()
-        hydra.ssl_contexts.rebuild_ssl_context(ssl_context, state['_ssl_context'])
-
     async def get(self, timeout: float | None = None) -> T | None:
         """
-        Get an item from the joinable queue server.
+        Get an item from the remote server source-queue.
 
         Args:
             timeout: The timeout for the transaction.
@@ -108,7 +106,11 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
 
     async def task_started(self, task: T | None = None) -> None:
         """
-        Notify the remote queue that the task is started.
+        Notify the remote server source-queue that the task is started.
+
+        Args:
+            task: optional task that was started.  If None, the server will not track specific tasks, only
+            the count of tasks in progress.  Otherwise, the server tracks tasks individually
         """
         if await self._joinable_queue.transact_async(
                 self._address, self._joinable_queue.ACTION_TASK_STARTED, payload=task, ssl_context=self._ssl_context
@@ -118,6 +120,10 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
     async def task_done(self, task: T | None = None) -> None:
         """
         Notify the remote queue that the task is done.
+
+        Args:
+            task: optional task that was started.  If None, the server will not track specific tasks, only
+            the count of tasks in progress.  Otherwise, the server tracks tasks individually
         """
         if self._closed:
             raise RuntimeError("Queue is closed and cannot notify task done")
@@ -128,7 +134,8 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
 
     async def close(self):
         """
-        Close the connection to the remote queue.
+        Close the connection to the remote queue.  After this call, not more operations can be performed on the queue
+        until another connect call is mase.
         """
         if not self._closed:
             with suppress(ConnectionError):
@@ -154,6 +161,9 @@ class AsyncSourceQueueFeed(AsyncSourceFeed[T]):
     @asynccontextmanager
     async def start(self, server_ssl_context: ssl.SSLContext | None = None)\
             -> AsyncGenerator["AsyncSourceQueueFeed[T]", None]:
+        """
+        Start a background task to serve the source-queue.
+        """
         await self._joinable_queue.start_async(server_ssl_context)
         try:
             yield self
@@ -171,7 +181,7 @@ class AsyncSourceQueueFeed(AsyncSourceFeed[T]):
 
     async def put(self, item: T, timeout: float | None = None) -> None:
         """
-        Post data to the joinable queue server.
+        Post data to the remote server source-queue.
 
         Args:
             item: item to put in the queue.
@@ -185,7 +195,8 @@ class AsyncSourceQueueFeed(AsyncSourceFeed[T]):
 
     async def join(self, timeout: float | None = None) -> None:
         """
-        Wait for all items in the queue to be processed.
+        Wait for all items in the queue to be processed, as determined by the number of tasks done vs the number of
+        items put in the queue.
 
         Args:
             timeout: The timeout for the transaction.

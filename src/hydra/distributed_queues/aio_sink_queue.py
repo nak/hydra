@@ -9,6 +9,7 @@ from typing import TypeVar, Generic, AsyncGenerator
 
 import hydra.ssl_contexts
 from hydra.distributed_queues.aio_queue_api import AsyncSinkFeed, AsyncConsumer
+from hydra.distributed_queues.configuration import SSLCertificatesConfig
 from hydra.distributed_queues.joinable_queue import SinkJoinableQueue
 
 T = TypeVar('T')
@@ -17,7 +18,8 @@ S = TypeVar('S')
 
 class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
     """
-    Joinable queue that can be used as a sink to put items to be processed by a remote queue/server.
+    Joinable queue that can be used as a sink to put items to be processed by a remote queue/server.  Joining
+    the queue will wait until all clients are disconnected (unregistered) before the call to join() returns.
     """
     _pickle_counter = 0
 
@@ -47,6 +49,12 @@ class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
         await self.close()
 
     async def connect(self):
+        """
+        This connects to the server to register the feed.  The queue is not usable until this call is made,
+        which can also be done by using the queue as a context manager.  Note that the connection is closed
+        once the register with the server is complete.  All calls to eh API requiring a server transaction, connect
+        to ths server, perform the requested action, and the disconnects.
+        """
         await self._joinable_queue.register_async(self._name, self._ssl_context)
         self._closed = False
 
@@ -62,7 +70,7 @@ class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
     def __setstate__(self, state) -> None:
         if state.get('_ssl_context'):
             new_context = ssl.SSLContext(state['_ssl_context']['protocol'])
-            self._reload_certificates(new_context, state)
+            SSLCertificatesConfig.reload_certificates(new_context, state['_ssl_context'])
         else:
             new_context = None
         self.__class__._pickle_counter += 1
@@ -79,18 +87,9 @@ class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
             except RuntimeError:
                 asyncio.run(self._joinable_queue.register_async(self._name, self._ssl_context))
 
-    def _reload_certificates(self, ssl_context: ssl.SSLContext, state: dict):
-        """
-        To be overridden in subclass if needed to apply proper SSL context when pickling/unpickling on
-        another host.  This implementation simply loads default certificate
-        s on the new context and then applies the SSL context info from the original context,
-        """
-        ssl_context.load_default_certs()
-        hydra.ssl_contexts.rebuild_ssl_context(ssl_context, state['_ssl_context'])
-
     async def put(self, item: T, timeout: float | None = None) -> None:
         """
-        Post data to the joinable queue server.
+        Post data to the (remote)) server sink-queue.
 
         Args:
             item: item to put in the queue.
@@ -109,7 +108,7 @@ class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
 
     async def close(self):
         """
-        Close the connection to the remote queue.
+        Close the connection to the (remote) sink-queue.
         """
         if self._pickle_task:
             await self._pickle_task
@@ -138,6 +137,12 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
     @asynccontextmanager
     async def start(self, server_ssl_context: ssl.SSLContext | None = None)\
             -> AsyncGenerator["AsyncSinkQueueConsumer[T, S]", None]:
+        """
+        Start a background task to serve the queue.
+
+        Args:
+            server_ssl_context: optional SSL context for the server.
+        """
         task = await self._joinable_queue.start_async(server_ssl_context)
         try:
             yield self
@@ -159,7 +164,7 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
 
     async def get(self, timeout: float | None = None) -> T | S:
         """
-        Get an item from the joinable queue server.
+        Get an item from the server queue.
 
         Args:
             timeout: The timeout for the transaction.
@@ -178,7 +183,7 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
 
     async def join(self, timeout: float | None = None) -> None:
         """
-        Wait for all items in the queue to be processed.
+        Wait for clients to disconnect (unregister) with the server queue.
 
         Args:
             timeout: The timeout for the transaction.

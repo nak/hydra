@@ -68,7 +68,8 @@ def test_pickle_source_queue_consumer_with_ssl(free_port: int):
     from hydra.distributed_queues.source_queue import SourceQueueConsumer
 
     queue = SourceQueueConsumer(name='pytest-consumer', address=('127.0.0.1', free_port))
-    queue._ssl_context = ssl.create_default_context()
+    queue._ssl_context = ssl.SSLContext()
+    queue._ssl_context.load_default_certs()
     data = pickle.dumps(queue)
     obj: SourceQueueConsumer = pickle.loads(data)
     assert isinstance(obj._ssl_context, ssl.SSLContext)

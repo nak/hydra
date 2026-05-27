@@ -61,7 +61,8 @@ def test_pickle_sink_queue_feed_no_ssl(free_port: int):
     assert obj._closed == queue._closed
     assert obj._address == queue._address
     assert obj._ssl_context is None
-    queue._ssl_context = ssl.create_default_context()
+    queue._ssl_context = ssl.SSLContext()
+    queue._ssl_context.load_default_certs()
     data = pickle.dumps(queue)
     obj: SinkQueueFeed = pickle.loads(data)
     assert obj._name == queue._name
