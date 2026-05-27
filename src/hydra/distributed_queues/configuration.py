@@ -9,13 +9,13 @@ def configure(timeout_io: float | int = 10, timeout_connect: float | int = 10,
               time_io_overhead: float | int = 0.2):
     """
     Configure the default timeouts for distributed queues.
-     This should be called before using any distributed queue functionality.
+    This should be called before using any distributed queue functionality.
 
     Args:
         timeout_io: Optional override for the  timeout for socket I/O operations in seconds.
         timeout_connect: Optional override for the timeout for socket connection operations in seconds.
         time_io_overhead: Optional override for additional time to add for socket I/O operations, applied on top
-           of client request to account for overhead
+            of client request to account for overhead
     """
     from hydra.distributed_queues.joinable_queue import _BaseJoinableQueue
     _BaseJoinableQueue.TIMEOUT_SOCKET_IO = timeout_io

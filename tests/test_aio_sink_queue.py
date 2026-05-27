@@ -143,15 +143,19 @@ async def test_pickling(free_port, signed_client, signed_server, ssl_contexts: t
 
     async with AsyncSinkQueueConsumer[int, str](address=(localhost, free_port), sentinel="done", size=10,
                                                 ssl_context=client_ssl_context).start(server_ssl_context) as server_queue:
-      async with AsyncSinkQueueFeed[int](name="pytest_client", address=(localhost, free_port), sentinel="done",
+        async with AsyncSinkQueueFeed[int](name="pytest_client", address=(localhost, free_port), sentinel="done",
                                          ssl_context=client_ssl_context) as client_queue:
-        with pytest.raises(PickleError):
-            pickle.dumps(server_queue)
-        data = pickle.dumps(client_queue)
-        new_client_queue: AsyncSinkQueueFeed = pickle.loads(data)
-        new_client_queue2: AsyncSinkQueueFeed = pickle.loads(data)
-        assert not new_client_queue._closed
-        assert new_client_queue.name.endswith("-1")
-        assert new_client_queue2.name.endswith("-2")
-        await new_client_queue.put(1)
-        assert await server_queue.get() == 1
+            with pytest.raises(PickleError):
+                pickle.dumps(server_queue)
+            data = pickle.dumps(client_queue)
+            new_client_queue: AsyncSinkQueueFeed
+            new_client_queue2: AsyncSinkQueueFeed
+            async with pickle.loads(data) as new_client_queue,\
+                    pickle.loads(data) as new_client_queue2:
+                assert not new_client_queue._closed
+                assert new_client_queue.name.endswith("-1")
+                assert new_client_queue2.name.endswith("-2")
+                await new_client_queue.put(1)
+                assert await server_queue.get() == 1
+
+        await server_queue.join(timeout=0.1)

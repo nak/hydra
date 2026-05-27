@@ -39,7 +39,8 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
         return self._name
 
     async def __aenter__(self):
-        await self.connect()
+        if self._closed:
+            await self.connect()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -82,6 +83,10 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
                     asyncio.create_task(self._joinable_queue.register_async(self._name, self._ssl_context))
             except RuntimeError:
                 asyncio.run(self._joinable_queue.register_async(self._name, self._ssl_context))
+
+    def __del__(self):
+        if not self._closed:
+            asyncio.run(self.close())
 
     async def get(self, timeout: float | None = None) -> T | None:
         """

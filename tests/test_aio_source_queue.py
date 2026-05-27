@@ -108,15 +108,25 @@ async def test_pickling(free_port, signed_client, signed_server, ssl_contexts: t
 
     async with AsyncSourceQueueFeed[int](address=(localhost, free_port), size=10,
                                                 ssl_context=client_ssl_context).start(server_ssl_context) as server_queue:
-      async with AsyncSourceQueueConsumer[int](name="pytest_client", address=(localhost, free_port),
+        async with AsyncSourceQueueConsumer[int](name="pytest_client", address=(localhost, free_port),
                                          ssl_context=client_ssl_context) as client_queue:
-        with pytest.raises(PickleError):
-            pickle.dumps(server_queue)
-        data = pickle.dumps(client_queue)
-        new_client_queue: AsyncSourceQueueConsumer = pickle.loads(data)
-        new_client_queue2: AsyncSourceQueueConsumer = pickle.loads(data)
-        assert not new_client_queue._closed
-        assert new_client_queue.name.endswith("-1")
-        assert new_client_queue2.name.endswith("-2")
-        await server_queue.put(1)
-        assert await new_client_queue.get() == 1
+            with pytest.raises(PickleError):
+                pickle.dumps(server_queue)
+            data = pickle.dumps(client_queue)
+            new_client_queue: AsyncSourceQueueConsumer
+            new_client_queue2: AsyncSourceQueueConsumer
+            async with pickle.loads(data) as new_client_queue,\
+                    pickle.loads(data) as new_client_queue2:
+                assert not new_client_queue._closed
+                assert new_client_queue.name.endswith("-1")
+                assert new_client_queue2.name.endswith("-2")
+                await server_queue.put(1)
+                await server_queue.put(2)
+                assert await new_client_queue.get() == 1
+                await new_client_queue.task_started()
+                await new_client_queue.task_done()
+                assert await new_client_queue2.get() == 2
+                await new_client_queue2.task_started()
+                await new_client_queue2.task_done()
+
+        await server_queue.join(timeout=0.1)

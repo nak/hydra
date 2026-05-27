@@ -1,7 +1,4 @@
-"""
-Copyright (c) 2023, the Pytest-MProc developers.
-This file is part of the Pytest-MProc project, which is distributed under the MIT License.
-"""
+# Copyright (c) 2026, all rights reserved
 import asyncio
 import logging
 import os
@@ -60,7 +57,7 @@ class _BaseJoinableQueue(Generic[T, S]):
     ACTION_UNREGISTER = "UNREGISTER"
     ACTION_WAIT_CLIENTS = "WAIT_CLIENTS"
 
-    def __init__(self, address: tuple[str, int], size: int):
+    def __init__(self, address: tuple[str, int], size: int, sentinel: S):
         self._address = address
         self._clients: asyncio.Queue[str] = asyncio.Queue(self._MAX_CLIENT_Q_SIZE)
         self._client_ids: set[str] = set()
@@ -68,6 +65,7 @@ class _BaseJoinableQueue(Generic[T, S]):
         self._cleanup_sem: threading.Semaphore | None = None
         self._tasks_in_progress: set[T] = set()
         self._size = size
+        self._sentinel = sentinel
 
     def client_count(self):
         """
@@ -247,7 +245,8 @@ class _BaseJoinableQueue(Generic[T, S]):
             # drain the queue
             while not queue.empty():
                 item = queue.get_nowait()
-                logger.error(">> WARNING: Item still in queue during shutdown: %s", item)
+                if item != self._sentinel:
+                    logger.error(">> WARNING: Item still in queue during shutdown: %s", item)
                 queue.task_done()
         finally:
             transport.close()
@@ -299,9 +298,10 @@ class _BaseJoinableQueue(Generic[T, S]):
             raise TimeoutError(f"Timeout connecting to {address} after {timeout} seconds")
         if ssl_context is not None:
             with ssl_context.wrap_socket(sock, server_hostname=address[0]) as ssock:
-                return cls.transact_sock(action, payload, sock=ssock, timeout=timeout)
+                result = cls.transact_sock(action, payload, sock=ssock, timeout=timeout)
         else:
-            return cls.transact_sock(action, payload, sock=sock, timeout=timeout)
+            result = cls.transact_sock(action, payload, sock=sock, timeout=timeout)
+        return result
 
     @classmethod
     def transact_sock(cls,  action: str, payload: T | S,  sock: socket.socket, timeout: int | float | None)\
@@ -415,7 +415,7 @@ class _BaseJoinableQueue(Generic[T, S]):
                          ssl_context=ssl_context) != 0:
             raise RuntimeError(f"Failed to register client {client_id} with joinable queue server")
 
-    def unregister(self, client_id: str,  ssl_context: ssl.SSLContext | None) -> None:
+    def unregister(self, client_id: str,  ssl_context: ssl.SSLContext | None) -> int:
         """
         Register a new client with the joinable queue server.
 
@@ -424,7 +424,8 @@ class _BaseJoinableQueue(Generic[T, S]):
         """
         if self.transact(self._address, self.ACTION_UNREGISTER, client_id, timeout=self.TIMEOUT_SOCKET_IO,
                          ssl_context=ssl_context) != 0:
-            raise RuntimeError(f"Failed to register client {client_id} with joinable queue server")
+            raise RuntimeError(f"Failed to unregister client {client_id} with joinable queue server")
+        return 0
 
     async def unregister_async(self, client_id: str,  ssl_context: ssl.SSLContext | None) -> None:
         """
@@ -459,9 +460,8 @@ class SinkJoinableQueue(_BaseJoinableQueue[T, S]):
     """
 
     def __init__(self, address: tuple[str, int], sentinel: S, size: int = 0):
-        super().__init__(address, size)
+        super().__init__(address, size, sentinel)
         self._waiting_on_clients = False
-        self._sentinel = sentinel
         self._address = address
 
     async def _take_action(self, queue: asyncio.Queue[T | S], action: str, payload: float | int | T | S) -> bytes:
@@ -482,7 +482,7 @@ class SourceJoinableQueue(_BaseJoinableQueue[T, S]):
     """
 
     def __init__(self, address: tuple[str, int], size: int = 0):
-        super().__init__(address, size)
+        super().__init__(address, size, None)
         self._finalizing = False
 
     async def _take_action(self, queue: asyncio.Queue[T | S], action: str, payload: float | int | T | S) -> bytes:

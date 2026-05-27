@@ -27,31 +27,31 @@ def test_server_and_client_sync_queue(free_port: int, signed_client, signed_serv
         server_ssl_context.load_cert_chain(certfile=server_pem, keyfile=server_key)
     with SourceQueueFeed(address=(localhost, free_port), size=10, ssl_context=client_ssl_context)\
             .start(server_ssl_context) as server_queue:
-      with SourceQueueConsumer(name="pytest_client", address=(localhost, free_port),
+        with SourceQueueConsumer(name="pytest_client", address=(localhost, free_port),
                                ssl_context=client_ssl_context) as client_queue:
 
-        for num in range(20):
-            if num >= 10:
-                assert client_queue.get() == num - 10
+            for num in range(20):
+                if num >= 10:
+                    assert client_queue.get() == num - 10
+                    client_queue.task_started(f'task{num}')
+                    client_queue.task_done(f'task{num}')
+                server_queue.put(num)
+
+            for num in range(10, 20):
+                with pytest.raises(asyncio.TimeoutError):
+                    server_queue.join(timeout=0.1)
+                assert client_queue.get() == num
                 client_queue.task_started(f'task{num}')
                 client_queue.task_done(f'task{num}')
-            server_queue.put(num)
+                with pytest.raises(RuntimeError):
+                    client_queue.task_done(f'task{num + 1}')
 
-        for num in range(10, 20):
-            with pytest.raises(asyncio.TimeoutError):
-                server_queue.join(timeout=0.1)
-            assert client_queue.get() == num
-            client_queue.task_started(f'task{num}')
-            client_queue.task_done(f'task{num}')
-            with pytest.raises(RuntimeError):
-                client_queue.task_done(f'task{num + 1}')
-
-        with pytest.raises(asyncio.queues.QueueEmpty):
-            item = client_queue.get(timeout=0.1)
-            assert False, f"Expected QueueEmpty exception, but got item: {item}"
+            with pytest.raises(asyncio.queues.QueueEmpty):
+                item = client_queue.get(timeout=0.1)
+                assert False, f"Expected QueueEmpty exception, but got item: {item}"
 
 
-    server_queue.join(timeout=0.1)
+        server_queue.join(timeout=0.1)
 
 
 def test_pickle_source_queue_feed_no_ssl(free_port: int):

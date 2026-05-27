@@ -1,7 +1,11 @@
+# Copyright (c) 2026.  All rights reserved.
 import ssl
 
 
 def extract_ssl_context_info(context: ssl.SSLContext) -> dict:
+    """
+    Internal helper function for extracting basic info of SSL context to JSON
+    """
     return {
         "protocol": context.protocol,
         "verify_mode": int(context.verify_mode),
@@ -12,6 +16,9 @@ def extract_ssl_context_info(context: ssl.SSLContext) -> dict:
 
 
 def rebuild_ssl_context(context: ssl.SSLContext, info: dict) -> ssl.SSLContext:
+    """
+    Rebuild the basic structure of an SSL context from basic info (JSON)
+    """
     # 2. Restore options and flags using bitwise OR
     context.options |= info["options"]
     context.verify_flags |= info["verify_flags"]

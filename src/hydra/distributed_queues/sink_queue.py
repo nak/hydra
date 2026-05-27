@@ -1,5 +1,6 @@
 #  Copyright (c) 2025.  John Rusnak.  All rights reserved.
 #  This code may not be used for training AI or similar models without explicit consent from the author.
+import asyncio
 import logging
 import os
 import ssl
@@ -28,7 +29,7 @@ class SinkQueueFeed(Feed[T]):
 
     def __init__(self, name: str, address: tuple[str, int], sentinel: S, ssl_context: ssl.SSLContext | None = None):
         super().__init__()
-        self._closed = False
+        self._closed = True
         self._name = name
         self._address = address
         self._ssl_context = ssl_context
@@ -43,7 +44,8 @@ class SinkQueueFeed(Feed[T]):
         return self._name
 
     def __enter__(self):
-        self.connect()
+        if self._closed:
+            self.connect()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -74,8 +76,17 @@ class SinkQueueFeed(Feed[T]):
         else:
             new_context = None
         self.__class__._pickle_counter += 1
+        state['_name'] = f"{state['_name']}-{state['_address'][0]}-{os.getpid()}-{self._pickle_counter}"
         state['_ssl_context'] = new_context
+        state['_joinable_queue'] = SinkJoinableQueue(address=state['_address'], sentinel=None)
         self.__dict__.update(state)
+        if not self._closed:
+            self._joinable_queue.register(self._name, self._ssl_context)
+
+    def __del__(self):
+        if not self._closed:
+            self.close()
+
 
     def put(self, item: T, timeout: float | None = None) -> None:
         """
@@ -100,8 +111,8 @@ class SinkQueueFeed(Feed[T]):
         remote queue until connect() is called (again).
         """
         with suppress(TimeoutError, ConnectionError):
-            if not self._closed and self._joinable_queue.unregister(self._name, ssl_context=self._ssl_context) != 0:
-                logger.error("Failed to send closure status to remote queue")
+            if not self._closed:
+                self._joinable_queue.unregister(self._name, ssl_context=self._ssl_context)
         self._closed = True
 
 

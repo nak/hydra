@@ -2,11 +2,11 @@
 This module contains the logic for distributed queues.  They are based on a single server with multiple (remote)
 clients.  The type of queues supported are:
 
-1. Source queues: these are queues that can be used to consume items from a single remote queue/server.
+#. Source queues: these are queues that can be used to consume items from a single remote queue/server.
    The AsyncSourceQueueFeed class acts as a server, providing the interface to put items in the queue.
    The AsyncSourceQueueConsumer class acts as a client, providing the interface to pull the next item from the queue.
    These queues are joinable, meaning that the client can notify the server when a task is started and when it is done.
-2. Sink queues: these are queues that can be used to post items to a single remote queue/server.  The
+#. Sink queues: these are queues that can be used to post items to a single remote queue/server.  The
    AsyncSinkQueueConsumer class acts as a server, providing the interface to pull items from the queue
    The AsyncSinkQueueFeed class acts as a client, providing the interface to put items in the queue.  Clients must
    connect (register) with the server to be usable, and disconnected (unregistered) once done. (This can

@@ -1,13 +1,14 @@
 #  Copyright (c) 2025.  John Rusnak.  All rights reserved.
 #  This code may not be used for training AI or similar models without explicit consent from the author.
+import os
 import ssl
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pickle import PickleError
 from typing import TypeVar
 
 import hydra.ssl_contexts
 from hydra.distributed_queues.configuration import SSLCertificatesConfig
-from hydra.distributed_queues.joinable_queue import SourceJoinableQueue
+from hydra.distributed_queues.joinable_queue import SourceJoinableQueue, SinkJoinableQueue
 from hydra.distributed_queues.queue_api import Consumer, SourceFeed
 
 T = TypeVar('T')
@@ -36,7 +37,8 @@ class SourceQueueConsumer(Consumer[T]):
         return self._name
 
     def __enter__(self):
-        self.connect()
+        if self._closed:
+            self.connect()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -47,7 +49,7 @@ class SourceQueueConsumer(Consumer[T]):
         This connects to the server to register the feed.  The queue is not usable until this call is made,
         which can also be done by using the queue as a context manager.  Note that the connection is closed
         once the register with the server is complete.  All calls to eh API requiring a server transaction, connect
-        to ths server, perform the requested action, and the disconnects.
+        to the server, perform the requested action, and the disconnects.
         """
         self._joinable_queue.register(self._name, self._ssl_context)
         self._closed = False
@@ -68,7 +70,15 @@ class SourceQueueConsumer(Consumer[T]):
             new_context = None
         self.__class__._pickle_counter += 1
         state['_ssl_context'] = new_context
+        state['_name'] = f"{state['_name']}-{state['_address'][0]}-{os.getpid()}-{self._pickle_counter}"
+        state['_joinable_queue'] = SinkJoinableQueue(address=state['_address'], sentinel=None)
         self.__dict__.update(state)
+        if not self._closed:
+            self._joinable_queue.register(self._name, self._ssl_context)
+
+    def __del__(self):
+        if not self._closed:
+            self.close()
 
     def get(self, timeout: float | None = None) -> T | None:
         """
@@ -115,7 +125,9 @@ class SourceQueueConsumer(Consumer[T]):
         """
         Close the connection to the remote queue.
         """
-        self._joinable_queue.unregister_async(self._name, self._ssl_context)
+        with suppress(TimeoutError, ConnectionError):
+            if not self._closed:
+                self._joinable_queue.unregister_async(self._name, self._ssl_context)
         self._closed = True
 
 
