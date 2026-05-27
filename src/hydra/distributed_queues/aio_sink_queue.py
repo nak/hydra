@@ -113,7 +113,9 @@ class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
 
     async def close(self):
         """
-        Close the connection to the (remote) sink-queue.
+        Close this queue, unregistering it from the (remote) sink-queue.
+        After this call, not more operations can be performed on the queue
+        until another connect call is mase.
         """
         if self._pickle_task:
             await self._pickle_task

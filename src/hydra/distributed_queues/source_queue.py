@@ -123,7 +123,9 @@ class SourceQueueConsumer(Consumer[T]):
 
     def close(self):
         """
-        Close the connection to the remote queue.
+        Close this queue, unregistering it from the (remote) sink-queue.
+        After this call, not more operations can be performed on the queue
+        until another connect call is mase.
         """
         with suppress(TimeoutError, ConnectionError):
             if not self._closed:
@@ -193,6 +195,3 @@ class SourceQueueFeed(SourceFeed[T]):
         if self._joinable_queue.transact(self._address, self._joinable_queue.ACTION_JOIN, payload=timeout,
                                          ssl_context=self._client_ssl_context) != 0:
             raise RuntimeError("Failed to join joinable queue server")
-
-    def close(self) -> None:
-        pass

@@ -92,8 +92,7 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
         """
         Get an item from the remote server source-queue.
 
-        Args:
-            timeout: The timeout for the transaction.
+        :param timeout: The timeout for the transaction.
 
         Returns:
             The item retrieved from the queue.
@@ -113,8 +112,7 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
         """
         Notify the remote server source-queue that the task is started.
 
-        Args:
-            task: optional task that was started.  If None, the server will not track specific tasks, only
+        :param task: Optional task that was started.  If None, the server will not track specific tasks, only
             the count of tasks in progress.  Otherwise, the server tracks tasks individually
         """
         if await self._joinable_queue.transact_async(
@@ -126,8 +124,7 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
         """
         Notify the remote queue that the task is done.
 
-        Args:
-            task: optional task that was started.  If None, the server will not track specific tasks, only
+        :param task: Optional task that was started.  If None, the server will not track specific tasks, only
             the count of tasks in progress.  Otherwise, the server tracks tasks individually
         """
         if self._closed:
@@ -139,7 +136,8 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
 
     async def close(self):
         """
-        Close the connection to the remote queue.  After this call, not more operations can be performed on the queue
+        Close this queue, unregistering it from the (remote) sink-queue.
+        After this call, not more operations can be performed on the queue
         until another connect call is mase.
         """
         if not self._closed:

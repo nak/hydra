@@ -1,6 +1,5 @@
 #  Copyright (c) 2025.  John Rusnak.  All rights reserved.
 #  This code may not be used for training AI or similar models without explicit consent from the author.
-import asyncio
 import logging
 import os
 import ssl
@@ -87,7 +86,6 @@ class SinkQueueFeed(Feed[T]):
         if not self._closed:
             self.close()
 
-
     def put(self, item: T, timeout: float | None = None) -> None:
         """
         Post data to the remote server sink-queue.
@@ -107,8 +105,9 @@ class SinkQueueFeed(Feed[T]):
 
     def close(self):
         """
-        Close the connection to the remote queue.  This instance cannot be used to invoke further APIs to the
-        remote queue until connect() is called (again).
+        Close this queue, unregistering it from the (remote) sink-queue.
+        After this call, not more operations can be performed on the queue
+        until another connect call is mase.
         """
         with suppress(TimeoutError, ConnectionError):
             if not self._closed:
