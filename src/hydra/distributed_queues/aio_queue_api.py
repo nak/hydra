@@ -22,12 +22,6 @@ class AsyncConsumer(Protocol[T]):
         """
         raise NotImplementedError
 
-    async def close(self) -> None:
-        """
-        Close the connection to the remote queue.
-        """
-        raise NotImplementedError
-
 
 class AsyncSinkConsumer(AsyncConsumer[T], ABC):
     """
