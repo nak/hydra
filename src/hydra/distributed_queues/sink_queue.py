@@ -90,10 +90,8 @@ class SinkQueueFeed(Feed[T]):
         """
         Post data to the remote server sink-queue.
 
-        Args:
-            item: item to put in the queue.
-            timeout: The timeout for the transaction.
-
+        :param item: item to put in the queue.
+        :param timeout: The timeout for the transaction.
         """
         if self._closed:
             raise RuntimeError("Queue is closed and cannot put items")
@@ -136,8 +134,7 @@ class SinkQueueConsumer(Generic[T, S], SinkConsumer[T]):
         """
         Start a background task to serve the queue.
 
-        Args:
-            server_ssl_context: optional SSL context for the server.
+        :param server_ssl_context: optional SSL context for the server.
         """
         self._joinable_queue.start(server_ssl_context)
         try:
@@ -158,15 +155,12 @@ class SinkQueueConsumer(Generic[T, S], SinkConsumer[T]):
         """
         Get an item from the joinable queue server.
 
-        Args:
-            timeout: The timeout for the transaction.
+        :param timeout: The timeout for the transaction.
 
-        Returns:
-            The item retrieved from the queue.
+        :returns: The item retrieved from the queue.
 
-        Raises:
-            QueueEmpty: if not item is available in queue in time
-            RuntimeError: if the server returns an error
+        :raises QueueEmpty: if not item is available in queue in time
+        :raises RuntimeError: if the server returns an error
         """
         return self._joinable_queue.transact(
             self._address, self._joinable_queue.ACTION_GET, payload=timeout, timeout=timeout,
@@ -177,11 +171,9 @@ class SinkQueueConsumer(Generic[T, S], SinkConsumer[T]):
         """
         Wait for all clients to disconnect (unregister) before returning
 
-        Args:
-            timeout: The timeout for the transaction.
+        :param timeout: The timeout for the transaction.
 
-        Raises:
-            RuntimeError: if the server returns an error
+        :raises RuntimeError: if the server returns an error
         """
         if self._joinable_queue.transact(self._address, self._joinable_queue.ACTION_JOIN, payload=timeout,
                                          ssl_context=self._client_ssl_context) != 0:

@@ -85,9 +85,8 @@ class _BaseJoinableQueue(Generic[T, S]):
         """
         Handle incoming requests from clients.
 
-        Args:
-            reader: The stream reader for incoming data.
-            writer: The stream writer for sending data.
+        :param reader: The stream reader for incoming data.
+        :param writer: The stream writer for sending data.
         """
         packet_size = struct.unpack("!L", await reader.readexactly(4))[0]
         request_bytes = await reader.readexactly(packet_size)
@@ -136,12 +135,10 @@ class _BaseJoinableQueue(Generic[T, S]):
         """
         Take action based on the request action and payload.
 
-        Args:
-            action: The action to perform (GET, PUT, JOIN, TASK_DONE, REGISTER).
-            payload: The payload associated with the action.
+        :param action: The action to perform (GET, PUT, JOIN, TASK_DONE, REGISTER).
+        :param payload: The payload associated with the action.
 
-        Returns:
-            bytes: The response bytes to send back to the client.
+        :returns: The response bytes to send back to the client.
         """
         match action:
             case self.ACTION_GET:
@@ -280,14 +277,13 @@ class _BaseJoinableQueue(Generic[T, S]):
         """
         Perform a transaction with the joinable queue server.
 
-        Args:
-            address: The address of the server (host, port).
-            action: The action to perform (GET, PUT, JOIN, TASK_DONE, REGISTER).
-            payload: The payload associated with the action.
-            timeout: The timeout for the transaction.
-            ssl_context: optional SSL context
-        Returns:
-            The response bytes from the server.
+        :param address: The address of the server (host, port).
+        :param action: The action to perform (GET, PUT, JOIN, TASK_DONE, REGISTER).
+        :param payload: The payload associated with the action.
+        :param timeout: The timeout for the transaction.
+        :param ssl_context: optional SSL context
+
+        :returns: The response bytes from the server.
         """
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         if timeout is not None:
@@ -355,14 +351,12 @@ class _BaseJoinableQueue(Generic[T, S]):
         """
         Perform an asynchronous transaction with the joinable queue server.
 
-        Args:
-            address: The address of the server (host, port).
-            action: The action to perform (GET, PUT, JOIN, TASK_DONE, REGISTER).
-            payload: The payload associated with the action.
-            timeout: The timeout for the transaction.
+        :param address: The address of the server (host, port).
+        :param action: The action to perform (GET, PUT, JOIN, TASK_DONE, REGISTER).
+        :param payload: The payload associated with the action.
+        :param timeout: The timeout for the transaction.
 
-        Returns:
-            The response from the server.
+        :returns: The response from the server.
         """
         try:
             reader, writer = await asyncio.wait_for(
@@ -408,8 +402,7 @@ class _BaseJoinableQueue(Generic[T, S]):
         """
         Register a new client with the joinable queue server.
 
-        Raises:
-            RuntimeError: if the server returns an error
+        :raises RuntimeError: if the server returns an error
         """
         if self.transact(self._address, self.ACTION_REGISTER, client_id, timeout=self.TIMEOUT_SOCKET_IO,
                          ssl_context=ssl_context) != 0:
@@ -419,8 +412,7 @@ class _BaseJoinableQueue(Generic[T, S]):
         """
         Register a new client with the joinable queue server.
 
-        Raises:
-            RuntimeError: if the server returns an error
+        :raises RuntimeError: if the server returns an error
         """
         if self.transact(self._address, self.ACTION_UNREGISTER, client_id, timeout=self.TIMEOUT_SOCKET_IO,
                          ssl_context=ssl_context) != 0:
@@ -431,8 +423,7 @@ class _BaseJoinableQueue(Generic[T, S]):
         """
         Register a new client with the joinable queue server.
 
-        Raises:
-            RuntimeError: if the server returns an error
+        :raises RuntimeError: if the server returns an error
         """
         if await self.transact_async(
             self._address, self.ACTION_UNREGISTER, client_id, timeout=self.TIMEOUT_SOCKET_IO,
@@ -444,8 +435,7 @@ class _BaseJoinableQueue(Generic[T, S]):
         """
         Register a new client with the joinable queue server.
 
-        Raises:
-            RuntimeError: if the server returns an error
+        :raises RuntimeError: if the server returns an error
         """
         if await self.transact_async(
             self._address, self.ACTION_REGISTER, client_id, timeout=self.TIMEOUT_SOCKET_IO,

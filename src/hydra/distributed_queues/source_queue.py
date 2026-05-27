@@ -84,15 +84,12 @@ class SourceQueueConsumer(Consumer[T]):
         """
         Get an item from the joinable queue server.
 
-        Args:
-            timeout: The timeout for the transaction.
+        :param timeout: The timeout for the transaction.
 
-        Returns:
-            The item retrieved from the queue.
+        :returns: The item retrieved from the queue.
 
-        Raises:
-            QueueEmpty: if no item is available in the queue in time
-            RuntimeError: if the server returns an error
+        :raises QueueEmpty: if no item is available in the queue in time
+        :raises RuntimeError: if the server returns an error
         """
         if self._closed:
             raise RuntimeError("Queue is closed and cannot get items")
@@ -153,8 +150,7 @@ class SourceQueueFeed(SourceFeed[T]):
         """
         Context manager to start the joinable queue server and ensure it is properly shut down.
 
-        Args:
-            server_ssl_context: Optional SSL context for the server.
+        :param server_ssl_context: Optional SSL context for the server.
         """
         self._joinable_queue.start(server_ssl_context)
         try:
@@ -172,9 +168,8 @@ class SourceQueueFeed(SourceFeed[T]):
         """
         Post data to the joinable queue server.
 
-        Args:
-            item: item to put in the queue.
-            timeout: The timeout for the transaction.
+        :param item: item to put in the queue.
+        :param timeout: The timeout for the transaction.
         """
         if self._joinable_queue.transact(
             self._address, self._joinable_queue.ACTION_PUT, (item, timeout),
@@ -186,11 +181,9 @@ class SourceQueueFeed(SourceFeed[T]):
         """
         Wait for all items in the queue to be processed.
 
-        Args:
-            timeout: The timeout for the transaction.
+        :param timeout: The timeout for the transaction.
 
-        Raises:
-            RuntimeError: if the server returns an error
+        :raises RuntimeError: if the server returns an error
         """
         if self._joinable_queue.transact(self._address, self._joinable_queue.ACTION_JOIN, payload=timeout,
                                          ssl_context=self._client_ssl_context) != 0:

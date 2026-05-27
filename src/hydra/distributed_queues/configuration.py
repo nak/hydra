@@ -11,11 +11,10 @@ def configure(timeout_io: float | int = 10, timeout_connect: float | int = 10,
     Configure the default timeouts for distributed queues.
     This should be called before using any distributed queue functionality.
 
-    Args:
-        timeout_io: Optional override for the  timeout for socket I/O operations in seconds.
-        timeout_connect: Optional override for the timeout for socket connection operations in seconds.
-        time_io_overhead: Optional override for additional time to add for socket I/O operations, applied on top
-            of client request to account for overhead
+    :param timeout_io: Optional override for the  timeout for socket I/O operations in seconds.
+    :param timeout_connect: Optional override for the timeout for socket connection operations in seconds.
+    :param time_io_overhead: Optional override for additional time to add for socket I/O operations, applied on top
+        of client request to account for overhead
     """
     from hydra.distributed_queues.joinable_queue import _BaseJoinableQueue
     _BaseJoinableQueue.TIMEOUT_SOCKET_IO = timeout_io
@@ -45,9 +44,8 @@ class SSLCertificatesConfig:
         Reload a certificate (primarily called internally when unpickling a client-queue.  If not callback is configured
         through tset_relead_callback, this will load default certificates on the host and apply and state attributes
 
-        Args:
-            ssl_context: the context to modify
-            state: dict of state values to apply as attributes to the context once loaded.
+        :param ssl_context: the context to modify
+        :param state: dict of state values to apply as attributes to the context once loaded.
         """
         if cls._reload_callback is None:
             import hydra.ssl_contexts

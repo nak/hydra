@@ -94,12 +94,10 @@ class AsyncSourceQueueConsumer(AsyncConsumer[T]):
 
         :param timeout: The timeout for the transaction.
 
-        Returns:
-            The item retrieved from the queue.
+        :returns: The item retrieved from the queue.
 
-        Raises:
-            QueueEmpty: if no item is available in the queue in time
-            RuntimeError: if the server returns an error
+        :raises QueueEmpty: if no item is available in the queue in time
+        :raises RuntimeError: if the server returns an error
         """
         if self._closed:
             raise RuntimeError("Queue is closed and cannot get items")
@@ -186,9 +184,8 @@ class AsyncSourceQueueFeed(AsyncSourceFeed[T]):
         """
         Post data to the remote server source-queue.
 
-        Args:
-            item: item to put in the queue.
-            timeout: The timeout for the transaction.
+        :param item: item to put in the queue.
+        :param timeout: The timeout for the transaction.
         """
         if await self._joinable_queue.transact_async(
             self._address, self._joinable_queue.ACTION_PUT, (item, timeout), timeout=timeout,
@@ -201,11 +198,9 @@ class AsyncSourceQueueFeed(AsyncSourceFeed[T]):
         Wait for all items in the queue to be processed, as determined by the number of tasks done vs the number of
         items put in the queue.
 
-        Args:
-            timeout: The timeout for the transaction.
+        :param timeout: The timeout for the transaction.
 
-        Raises:
-            RuntimeError: if the server returns an error
+        :raises RuntimeError: if the server returns an error
         """
         if await self._joinable_queue.transact_async(
             self._address, self._joinable_queue.ACTION_JOIN, payload=timeout, ssl_context=self._client_ssl_context,
