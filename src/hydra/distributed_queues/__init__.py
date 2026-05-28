@@ -29,6 +29,7 @@ As an example, the server code might look like:
 ...     async with AsyncSourceQueueFeed[str](address=(host, port), size=100).start() as server_queue:
 ...         for task in ['task1', 'task2', 'task3']:
 ...             await server_queue.put(task)
+...         await server_queue.join(timeout=1.0)
 
 While example client code looks like:
 
