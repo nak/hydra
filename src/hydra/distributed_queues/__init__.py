@@ -16,7 +16,7 @@ clients.  The type of queues supported are:
 Both async and non-async classes are provided.  Also, client-queue class instances are pickleable, allowing them
 to be readily passed to remote processes.
 
-The queues can uss SSL communications, with configuration to (re)load certificates through a callback in a user-defined
-manner.  This package does not dictate how certificate files or host configurations are managed when distributing across
-multiple hosts.  Port configurations are determined internally and are randomly assigned an available port on the host.
+The queues can uss SSL communications.  This package does not dictate how certificate files or host configurations are
+managed when distributing across multiple hosts. Configuration to (re)load certificates through a callback in a
+user-defined manner.
 """
