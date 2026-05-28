@@ -41,7 +41,7 @@ While example client code looks like:
 ... async def process_queue():
 ...     host, port = ...
 ...     try:
-...         async with AsyncSourceQueueConsumer(address=(host, port)) as client_queue:
+...         async with AsyncSourceQueueConsumer(name='my_client_queue_q1', address=(host, port)) as client_queue:
 ...             while task := await client_queue.get(timeout=1.0):
 ...                 await process_task(task)
 """

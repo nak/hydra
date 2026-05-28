@@ -8,7 +8,7 @@ T = TypeVar('T')
 
 class AsyncConsumer(Protocol[T]):
     """
-    Protocol for a consumer that can be used to process messages from a remote queue.
+    This class provides an API for a consumer that can be used to process messages from a remote queue.
     """
 
     @abstractmethod

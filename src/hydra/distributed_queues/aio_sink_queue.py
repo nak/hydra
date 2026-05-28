@@ -19,6 +19,10 @@ S = TypeVar('S')
 class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
     """
     A client (worker) proxy API that can be put items to be processed into a central remote sink-queue.
+
+    This class can be instantiated as a context manager, in which case the connection (registration) to the server
+    and the deregistration from the server are handled automatically.  The same can be achieved through direct
+    calls to connect() and close() without using an instance under context management.
     """
     _pickle_counter = 0
 
@@ -50,10 +54,11 @@ class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
 
     async def connect(self):
         """
-        This connects to the server to register the feed.  The queue is not usable until this call is made,
-        which can also be done by using the queue as a context manager.  Note that the connection is closed
-        once the register with the server is complete.  All calls to eh API requiring a server transaction, connect
-        to ths server, perform the requested action, and the disconnects.
+        This connects to (registers with) the server to register the feed under a unique name.
+        The queue is not usable until this call is made,or the queue is instantiated as a context manager.
+        Note all socket connections are one-shot, meaning a connection is opened, an action taken and the socket
+        connection closed.  Thus, 'connect' method name here is meant only in the sense of registering and making the
+        remote queue aware of this new client.
         """
         await self._joinable_queue.register_async(self._name, self._ssl_context)
         self._closed = False
@@ -95,8 +100,8 @@ class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
         """
         Post data to the (remote)) server sink-queue.
 
-        :param item: item to put in the queue.
-        :param timeout: The timeout for the transaction.
+        :param item: Item to put in the queue.
+        :param timeout: Optional timeout for the transaction.  Waits indefinitely if not specified
         """
         if self._pickle_task:
             await self._pickle_task
@@ -143,7 +148,8 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
     async def start(self, server_ssl_context: ssl.SSLContext | None = None)\
             -> AsyncGenerator["AsyncSinkQueueConsumer[T, S]", None]:
         """
-        Starts a background task to serve the queue.
+        Starts a background task to serve the queue via a context manager that automatically closes
+        the server when exiting the context.
 
         :param server_ssl_context: Optional SSL context for the server.
         """
@@ -189,7 +195,7 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
         """
         Wait for all clients to disconnect (unregister) with the server queue.
 
-        :param timeout: The timeout for the transaction.
+        :param timeout: Optional timeout for the transaction.  Waits indefinitely if not specified.
 
         :raises RuntimeError: If the server returns an error
         """
