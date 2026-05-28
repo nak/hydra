@@ -16,5 +16,3 @@ More modules will be added here as the package grows.
    :caption: Modules:
 
    distributed_queues
-   exceptions
-   ssl_contexts
