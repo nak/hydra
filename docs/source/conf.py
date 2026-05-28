@@ -25,7 +25,10 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
     'sphinx.ext.todo',
+    'sphinx.ext.graphviz',
 ]
+
+graphviz_output_format = 'svg'
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
