@@ -70,7 +70,7 @@ The feed serializes hand-out, so each test is delivered to exactly one worker.
        feed:t4 -> client1 [label="get() -> test_4", color="#2e8b57", style=dashed];
 
        caption [shape=plaintext, fontsize=10,
-                label="First-come-first-served: whichever worker calls get() next receives the head item.\nThe SourceQueueFeed serializes hand-out so each test is delivered to exactly one worker."];
+                label="First-come-first-served"];
        { rank=sink; caption; }
    }
 
