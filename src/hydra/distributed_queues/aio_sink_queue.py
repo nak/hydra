@@ -18,8 +18,7 @@ S = TypeVar('S')
 
 class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
     """
-    Joinable queue that can be used as a sink to put items to be processed by a remote queue/server.  Joining
-    the queue will wait until all clients are disconnected (unregistered) before the call to join() returns.
+    A client (worker) proxy API that can be put items to be processed into a central remote sink-queue.
     """
     _pickle_counter = 0
 
@@ -126,7 +125,8 @@ class AsyncSinkQueueFeed(AsyncSinkFeed[T]):
 
 class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
     """
-    Joinable queue that can be used as a sink for items to be processed from multiple remote clients
+    A server-side sink-queue used as a data sink of items.  Items can be pulled form the queue (as they
+    get populated by remote clients)
     """
 
     def __init__(self, address: tuple[str, int], sentinel: S, size: int = 0, ssl_context: ssl.SSLContext | None = None):
@@ -143,9 +143,9 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
     async def start(self, server_ssl_context: ssl.SSLContext | None = None)\
             -> AsyncGenerator["AsyncSinkQueueConsumer[T, S]", None]:
         """
-        Start a background task to serve the queue.
+        Starts a background task to serve the queue.
 
-        :param server_ssl_context: optional SSL context for the server.
+        :param server_ssl_context: Optional SSL context for the server.
         """
         task = await self._joinable_queue.start_async(server_ssl_context)
         try:
@@ -159,23 +159,26 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
 
     def __getstate__(self) -> dict[str, object]:
         """
-        Return only what a client queue needs to connect to the server, not the internal state of the queue/server.
+        Ensures item is not pickleable
         """
         raise PickleError("AsyncSinkQueueConsumer cannot be pickled as it is not to be duplicated")
 
     def __setstate__(self, state):
+        """
+        Ensures item is not pickleable
+        """
         raise PickleError("AsyncSinkQueueConsumer cannot be (un)pickled as it is not to be duplicated")
 
     async def get(self, timeout: float | None = None) -> T | S:
         """
-        Get an item from the server queue.
+        Get an item from the central server queue.
 
         :param timeout: The timeout for the transaction.
 
         :returns: The item retrieved from the queue.
 
-        :raises QueueEmpty: if not item is available in queue in time
-        :raises RuntimeError: if the server returns an error
+        :raises QueueEmpty: If not item is available in queue in time
+        :raises RuntimeError: If the server returns an error
         """
         return await self._joinable_queue.transact_async(
             self._address, self._joinable_queue.ACTION_GET, payload=timeout, ssl_context=self._client_ssl_context,
@@ -184,11 +187,11 @@ class AsyncSinkQueueConsumer(Generic[T, S], AsyncConsumer[T]):
 
     async def join(self, timeout: float | None = None) -> None:
         """
-        Wait for clients to disconnect (unregister) with the server queue.
+        Wait for all clients to disconnect (unregister) with the server queue.
 
         :param timeout: The timeout for the transaction.
 
-        :raises RuntimeError: if the server returns an error
+        :raises RuntimeError: If the server returns an error
         """
         if await self._joinable_queue.transact_async(
             self._address, self._joinable_queue.ACTION_JOIN, payload=timeout, ssl_context=self._client_ssl_context,

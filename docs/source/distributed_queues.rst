@@ -74,6 +74,72 @@ The feed serializes hand-out, so each test is delivered to exactly one worker.
        { rank=sink; caption; }
    }
 
+Test results flow in the opposite direction. Each worker holds a
+:class:`~hydra.distributed_queues.sink_queue.SinkQueueFeed` and pushes the result of
+every completed test to a single
+:class:`~hydra.distributed_queues.sink_queue.SinkQueueConsumer` on a *results-server*,
+which posts status as each result is received. Multiple producers fan in to one
+consumer; the consumer interleaves results in arrival order.
+
+.. graphviz::
+   :alt: Multiple SinkQueueFeed workers pushing test results to a single SinkQueueConsumer that posts status as each result arrives.
+   :align: center
+   :caption: Workers fanning test results into a single ``SinkQueueConsumer`` that reports status as results arrive.
+
+   digraph SinkQueueResultCollection {
+       rankdir=LR;
+       splines=spline;
+       nodesep=0.5;
+       ranksep=1.0;
+       bgcolor="white";
+       node [fontname="Helvetica", fontsize=11];
+       edge [fontname="Helvetica", fontsize=10];
+
+       subgraph cluster_workers {
+           label="Remote Worker Machines";
+           labelloc="t";
+           fontname="Helvetica-Bold";
+           fontsize=12;
+           style="rounded,filled";
+           color="#2e8b57";
+           fillcolor="#eaf7ee";
+
+           worker1 [label="Worker A\nSinkQueueFeed\n(host: worker-a)", shape=box,
+                    style="rounded,filled", fillcolor="#ffffff", color="#2e8b57"];
+           worker2 [label="Worker B\nSinkQueueFeed\n(host: worker-b)", shape=box,
+                    style="rounded,filled", fillcolor="#ffffff", color="#2e8b57"];
+           worker3 [label="Worker C\nSinkQueueFeed\n(host: worker-c)", shape=box,
+                    style="rounded,filled", fillcolor="#ffffff", color="#2e8b57"];
+       }
+
+       subgraph cluster_results {
+           label="Results Server (host: results-server)";
+           labelloc="t";
+           fontname="Helvetica-Bold";
+           fontsize=12;
+           style="rounded,filled";
+           color="#a5533b";
+           fillcolor="#fbeeea";
+
+           sink [label="<f0> SinkQueueConsumer\n(addr: results-server:5556) | <r1> result(test_1, PASS) | <r2> result(test_2, FAIL) | <r3> result(test_3, PASS) | <r4> ... | <rn> result(test_N, ...)",
+                 shape=record, style="filled", fillcolor="#fff8dc", color="#b58900"];
+
+           reporter [label="Status Reporter\n(prints / logs each result\nas it arrives)", shape=box,
+                     style="rounded,filled", fillcolor="#ffffff", color="#a5533b"];
+
+           sink:f0 -> reporter [label="get() -> result"];
+       }
+
+       worker1 -> sink:r1 [label="put(result_1)", color="#a5533b"];
+       worker2 -> sink:r2 [label="put(result_2)", color="#a5533b"];
+       worker3 -> sink:r3 [label="put(result_3)", color="#a5533b"];
+       worker1 -> sink:r4 [label="put(result_4)", color="#a5533b", style=dashed];
+
+       caption2 [shape=plaintext, fontsize=10,
+                 label="Fan-in: many producers, one consumer. Results are interleaved in arrival order."];
+       { rank=sink; caption2; }
+   }
+
 Public API
 ----------
 

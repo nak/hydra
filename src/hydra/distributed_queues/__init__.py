@@ -1,22 +1,46 @@
 """
-This module contains the logic for distributed queues.  They are based on a single server with multiple (remote)
-clients.  The type of queues supported are:
+This module contains the logic for distributed queues.  They are based on a single server hosting a common queue,
+with multiple (remote) client proxies to interact with it..  The types of queues supported are:
 
-#. Source queues: these are queues that can be used to consume items from a single remote queue/server.
-   The AsyncSourceQueueFeed class acts as a server, providing the interface to put items in the queue.
-   The AsyncSourceQueueConsumer class acts as a client, providing the interface to pull the next item from the queue.
-   These queues are joinable, meaning that the client can notify the server when a task is started and when it is done.
-#. Sink queues: these are queues that can be used to post items to a single remote queue/server.  The
-   AsyncSinkQueueConsumer class acts as a server, providing the interface to pull items from the queue
-   The AsyncSinkQueueFeed class acts as a client, providing the interface to put items in the queue.  Clients must
-   connect (register) with the server to be usable, and disconnected (unregistered) once done. (This can
-   be handled automatically by using the queue as a context manager).  The server queue is joinable, and once
-   join() is called, the server will wait until all clients are unregistered before returning.
+#. *Source queues*: a source queue acts as a single queue for a client to populate, with remote worker clients pulling
+   from the queue on a first-come-first-serve basis.  Each item put into the queue is served to only one worker client.
+   The queue is a joinable queue, meaning that workers signal that a task ist started and when a task is completed to
+   the server.  A call to the server queue's join method waits until all tasks are done for each item that has been
+   served.
+#. *Sink queues*: A sink queue follows the opposite data flow.  The server queue is a sink of data items that the
+   server pulls from, with remote worker clients pushing items into the queue.  This queue is also joinable, with
+   each worker registering with the queue to gain access, and
+   a call to join the queue from the server waiting until all clients have unregistered.
 
 Both async and non-async classes are provided.  Also, client-queue class instances are pickleable, allowing them
-to be readily passed to remote processes.
+to be readily passed to remote processes. (For example, using a RPC package like *bantam*)
 
-The queues can uss SSL communications.  This package does not dictate how certificate files or host configurations are
-managed when distributing across multiple hosts. Configuration to (re)load certificates through a callback in a
-user-defined manner.
+The queues are socket-based and can use SSL communications.  This package does not dictate how certificate
+files or host configurations are
+managed when access is required across multiple hosts. Configuration to (re)load certificates is achieved
+through a callback provided by the user.
+
+As an example, the server code might look like:
+
+>>> from hydra.distributed_queues.aio_source_queue import AsyncSourceQueueFeed
+...
+... async def populate():
+...     host, port = ...
+...     async with AsyncSourceQueueFeed[str](address=(host, port), size=100).start() as server_queue:
+...         for task in ['task1', 'task2', 'task3']:
+...             await server_queue.put(task)
+
+While example client code looks like:
+
+>>> from hydra.distributed_queues.aio_source_queue import AsyncSourceQueueConsumer
+...
+... async def process_task():
+...    ...
+...
+... async def process_queue():
+...     host, port = ...
+...     try:
+...         async with AsyncSourceQueueConsumer(address=(host, port)) as client_queue:
+...             while task := await client_queue.get(timeout=1.0):
+...                 await process_task(task)
 """
