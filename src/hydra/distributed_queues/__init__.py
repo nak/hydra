@@ -3,14 +3,16 @@ This module contains the logic for distributed queues.  They are based on a sing
 with multiple (remote) client proxies to interact with it..  The types of queues supported are:
 
 #. *Source queues*: a source queue acts as a single queue for a client to populate, with remote worker clients pulling
-   from the queue on a first-come-first-serve basis.  Each item put into the queue is served to only one worker client.
-   The queue is a joinable queue, meaning that workers signal that a task ist started and when a task is completed to
-   the server.  A call to the server queue's join method waits until all tasks are done for each item that has been
+   from the queue on a first-come-first-serve basis.
+   * Each item put into the queue is served to only one worker client.
+   * The queue is a joinable queue, meaning that workers signal that a task ist started and when a task is completed to
+   the server.
+   * A call to the server queue's join method waits until all tasks are done for each item that has been
    served.
 #. *Sink queues*: A sink queue follows the opposite data flow.  The server queue is a sink of data items that the
-   server pulls from, with remote worker clients pushing items into the queue.  This queue is also joinable, with
-   each worker registering with the queue to gain access, and
-   a call to join the queue from the server waiting until all clients have unregistered.
+   server pulls from, with remote worker clients pushing items to populate the queue.
+   * This queue is also joinable, with each worker registering with the queue to gain access
+   * A call to join the queue from the server waiting until all clients have unregistered.
 
 Both async and non-async classes are provided.  Also, client-queue class instances are pickleable, allowing them
 to be readily passed to remote processes. (For example, using a RPC package like *bantam*)
