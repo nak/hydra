@@ -8,6 +8,7 @@ import pytest
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))  # Ensure src/ is in the path for imports
+from hydra.nano_services.http import WebApplication
 
 if platform.system() == 'Windows':
     openssl = 'openssl.exe'
@@ -84,3 +85,21 @@ def signed_client(ca_credentials):
         shell=False, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     yield client_pem, client_key, ca_pem
+
+
+
+
+@pytest.fixture()
+def clear_web_app():
+    WebApplication._context= {}
+    WebApplication._class_instance_methods = {}
+    WebApplication._instance_methods_class_map= {}
+    WebApplication._instance_methods = []
+    WebApplication._all_methods = []
+    WebApplication.routes_get = {}
+    WebApplication.routes_post = {}
+    WebApplication.callables_get = {}
+    WebApplication.callables_post = {}
+    WebApplication.module_mapping_get = {}
+    WebApplication.module_mapping_post = {}
+    yield

@@ -4,7 +4,9 @@ import setuptools
 
 VERSION = "1.0.17"
 
-requirements = []
+requirements = [
+    'frozendict>=2.3.4',
+]
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 

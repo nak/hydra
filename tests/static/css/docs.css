@@ -1,0 +1,26 @@
+
+
+        h2{
+            margin: 1em 0 .6em 0;
+            font-weight: normal;
+            color: black;
+            font-family: 'Hammersmith One', sans-serif;
+            text-shadow: 0 -3px 0 rgba(255,255,255,0.8);
+            position: relative;
+            font-size: 30px;
+            line-height: 40px;
+            background-color: lightgrey;
+            font-size:150%
+        }
+
+        h3 {
+            margin: 1em 0 0.5em 0;
+            color: #343434;
+            font-size: 22px;
+            line-height: 40px;
+            font-weight: normal;
+            font-family: 'Orienta', sans-serif;
+            letter-spacing: 1px;
+            font-style: italic;font-size: 90%; background-color: #fed8b1;
+        }
+        
