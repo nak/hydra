@@ -1,12 +1,13 @@
 """
-hydra.nano_services provides and abstraction to easily declare Python clients to interact with a hydra.nano_services web application.
+hydra.nano_services provides and abstraction to easily declare Python clients to interact with a hydra.nano_services
+web application.
 
 To access client code, a server implementation must inherit from an abstract interface common to both client
 and server.  One defines an interface class (usually in its own file) such as:
 
->>>  from hydra.nano_services import WebInterface
-...  from hydra.nano_services import RestMethod
-...  from hydra.nano_services web_api
+>>>  from hydra.nano_services.client import WebInterface
+...  from hydra.nano_services.api import RestMethod
+...  from hydra.nano_services.decorators import web_api
 ...  from typing import AsyncIterator
 ...  from abc import abstractmethod
 ...
@@ -43,9 +44,9 @@ One then defines the concrete class (which for best practice, has same name, san
 @web_api decorators need not be specified as hydra.nano_services will ensure they are inherited. (But if you do
 specify them explicitly, you must ensure they are maintained to be the same):
 
->>>  from hydra.nano_services import WebInterface
-...  from hydra.nano_services import RestMethod
-...  from hydra.nano_services web_api
+>>>  from hydra.nano_services.client import WebInterface
+...  from hydra.nano_services.api import RestMethod
+...  from hydra.nano_services.decorators import web_api
 ...  from typing import AsyncIterator
 ...
 ...  class MyServerApi(MyServerApiInterface):
@@ -96,7 +97,6 @@ an "Interface" suffix, you will have to specify *impl_name=<name-of-concrete-cla
 method above.  The *end_point* parameter specifies the base url to the server that serves up MyServceApi class.
 
 """
-import asyncio
 import inspect
 import json
 import sys
@@ -152,7 +152,6 @@ class WebInterface(ABC):
         @classmethod
         @wraps(method)
         async def class_method(cls_, *args, **kwargs_):
-            nonlocal api, end_point
             # noinspection PyBroadException
             try:
                 arg_spec = inspect.getfullargspec(api._func)
@@ -212,10 +211,10 @@ class WebInterface(ABC):
     def _add_class_method_streamed(cls, clazz: Type, impl_name: str, end_point: str, method,
                                    common_headers: dict):
         if not hasattr(method, '_hydra_nano_services_web_api'):
-            raise SyntaxError(f"All methods of class WebClient most be decorated with '@web_api'")
+            raise SyntaxError("All methods of class WebClient most be decorated with '@web_api'")
         # noinspection PyProtectedMember
         if method._hydra_nano_services_web_api.has_streamed_request:
-            raise SyntaxError(f"Streamed request for WebClient's are not supported at this time")
+            raise SyntaxError("Streamed request for WebClient's are not supported at this time")
         # noinspection PyProtectedMember
 
         name = method.__name__
@@ -225,7 +224,7 @@ class WebInterface(ABC):
         # noinspection PyDecorator,PyUnusedLocal
         @classmethod
         async def class_method_streamed(cls_, *args, **kwargs):
-            nonlocal api, end_point, common_headers
+            nonlocal common_headers
             resp = None
             # noinspection PyBroadException
             try:
@@ -295,7 +294,6 @@ class WebInterface(ABC):
         # noinspection PyDecorator,PyShadowingNames
         @wraps(method)
         async def instance_method(self, *args, **kwargs_):
-            nonlocal api, end_point
             error_body = ""
             # noinspection PyBroadException
             try:
@@ -334,7 +332,7 @@ class WebInterface(ABC):
                             return conversions.from_str(data, api.return_type)
             except aiohttp.ClientResponseError as e:
                 try:
-                    body = error_body or  "<<no response text/traceback info>>"
+                    body = error_body or "<<no response text/traceback info>>"
                 except (ConnectionError, ClientConnectionError):
                     body = "<<no response text/traceback info>>"
                 body += f"\n\nRequest to {api.name} failed: {e.message}"
@@ -353,7 +351,6 @@ class WebInterface(ABC):
         base_url = f"{end_point}/{impl_name}/{name}"
 
         async def instance_method_streamed(self, *args, **kwargs_):
-            nonlocal api, end_point, base_url
             arg_spec = inspect.getfullargspec(api._func)
             kwargs_.update({
                 arg_spec.args[n + 1]: arg for n, arg in enumerate(args)
@@ -406,7 +403,7 @@ class WebInterface(ABC):
 
         setattr(clazz, name, instance_method_streamed)
 
-    # noinspection PyPep8Naming
+    # noinspection PyPep8Naming,PyTypeHints
     @classmethod
     def ClientEndpointMapping(cls: C, impl_name: Optional[str] = None,
                               common_headers: Optional[dict] = None) -> Mapping[str, C]:
@@ -463,6 +460,7 @@ class WebInterface(ABC):
                     else:
                         cls._add_class_method(clazz, impl_name, end_point, method, common_headers)
 
+            # noinspection PyTypeHints
             def __getitem__(self, end_point: str):
                 class Impl:
 

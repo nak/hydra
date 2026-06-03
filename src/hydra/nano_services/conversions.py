@@ -3,7 +3,8 @@ Since *hydra.nano_services* is essentially an RPC mechanism, all ``@web_api`` me
 strictly type-annotated. Only a restricted set of types is allowed -- specifically, ones that
 can be JSON-serialized and deserialized. The following types are supported:
 
-#. ``dict``, ``typing.Dict``, ``frozendict``, ``collections.OrderedDict``, ``typing.OrderedDict``, ``collections.abc.Mapping``
+#. ``dict``, ``typing.Dict``, ``frozendict``, ``collections.OrderedDict``, ``typing.OrderedDict``,
+   ``collections.abc.Mapping``
 #. ``list``, ``set``, ``frozenset``, ``FrozenList``, ``tuple``, ``typing.List``, ``typing.Set``, ``typing.Tuple``
 #. ``str``, ``int``, ``float``, ``bool``, ``bytes``
 #. ``datetime.datetime``, ``uuid.UUID``, ``pathlib.Path``, ``pathlib.PosixPath``, ``pathlib.WindowsPath``
@@ -19,7 +20,8 @@ possible. The intent is to allow the interfaces to be accessible, in principle, 
 Types that are **not** supported include:
 
 * Arbitrary objects that do not implement ``__getstate__`` / ``__setstate__`` and are not dataclasses
-* Generators, iterators, and coroutines (except where ``AsyncIterator`` / ``AsyncGenerator`` are used as the streaming return type)
+* Generators, iterators, and coroutines (except where ``AsyncIterator`` / ``AsyncGenerator`` are
+  used as the streaming return type)
 * File handles, sockets, and other OS resources
 * Callables, lambdas, and bound methods
 
@@ -121,7 +123,8 @@ def normalize_to_json_compat(val: Any) -> Any:
         json_data = val.isoformat()
     elif type(val) in (uuid.UUID, PosixPath, WindowsPath, Path):
         json_data = str(val)
-    elif type(val) in (collections.OrderedDict, ) or getattr(type(val), '_name', None) in ('OrderedDict', ) or getattr(type(val), '__name__', None) in ('OrderedDict', ):
+    elif type(val) in (collections.OrderedDict, ) or getattr(type(val), '_name', None) in ('OrderedDict', )\
+            or getattr(type(val), '__name__', None) in ('OrderedDict', ):
         json_data = []
         for key, value in val.items():
             json_data.append([to_str(key), normalize_to_json_compat(value)])
@@ -146,11 +149,12 @@ def type_origin(annotation: Any) -> Any:
     else:
         return annotation
 
+
 def full_type(annotation: Any) -> tuple[Any, tuple[Type, ...]]:
     base = type_origin(annotation)
     type_args = annotation.__args__ if hasattr(annotation, '__args__') else tuple()
     # noinspection PyBroadException
-    if base == typing.Union or type(base) == types.UnionType:
+    if base == typing.Union or type(base) is types.UnionType:
         return types.UnionType, type_args
     elif base == typing.Optional:
         return types.UnionType, (base.__args__[0], types.NoneType)
@@ -171,6 +175,7 @@ def full_type(annotation: Any) -> tuple[Any, tuple[Type, ...]]:
     else:
         raise TypeError(f"Unsupported type for web api: '{annotation}'.  "
                         "Parameterizable types must include type specifics")
+
 
 def normalize_from_json(json_data, typ: Any) -> Any:
     if typ is None or json_data is None:
@@ -225,8 +230,8 @@ def normalize_from_json(json_data, typ: Any) -> Any:
             try:
                 key_typ, elem_typ = type_args
             except ValueError:
-                    raise TypeError(f"Unsupported dict type for web api: '{typ}'."
-                                    " Type args has too many value specifications")
+                raise TypeError(f"Unsupported dict type for web api: '{typ}'."
+                                " Type args has too many value specifications")
             try:
                 return true_type({
                     normalize_from_json(from_str(k, key_typ), key_typ):  normalize_from_json(v, elem_typ)
@@ -250,7 +255,7 @@ def normalize_from_json(json_data, typ: Any) -> Any:
                     # already checked?
                     raise ValueError(f"Too many elements in json data for tuple type {typ}")
                 args += (args[-1], )  # fill in ellipsis types
-            return tuple(normalize_from_json(value,args[index]) for index, value in enumerate(json_data))
+            return tuple(normalize_from_json(value, args[index]) for index, value in enumerate(json_data))
         elif hasattr(typ, '__dataclass_fields__'):
             return typ(**{
                 name: normalize_from_json(json_data[name], field.type)

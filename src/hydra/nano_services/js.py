@@ -39,7 +39,7 @@ Sync vs. Async JavaScript
 Two flavors can be emitted, selected by the ``using_async`` parameter on ``WebApplication``:
 
 * ``using_async=True`` (the default) -- generates ``async`` functions that return
-  ``Promise``\ s and, for streaming endpoints, ``async`` generators (``async*``) that yield
+  ``Promise``'s and, for streaming endpoints, ``async`` generators (``async*``) that yield
   items as the server produces them. This flavor is the only one that supports streaming
   responses (return type ``AsyncIterator[T]`` / ``AsyncGenerator[T, None]``) and is required
   for any endpoint whose value changes over time.

@@ -79,7 +79,7 @@ try:
 
     _SelectorTransport._fatal_error = _fatal_error_override
 except Exception:
-    log.warn(f"This platform may not support on_disconnect for simple requests")
+    log.warn("This platform may not support on_disconnect for simple requests")
 
 
 def wrap(app, op):
@@ -354,7 +354,8 @@ class WebApplication:
                         immediate = getattr(clazz, method_name)
                         if hasattr(immediate, '__func__'):
                             immediate = immediate.__func__
-                        if hasattr(method, '_hydra_nano_services_web_api') and not hasattr(immediate, '_hydra_nano_services_web_api'):
+                        if hasattr(method, '_hydra_nano_services_web_api') and \
+                                not hasattr(immediate, '_hydra_nano_services_web_api'):
                             web_api(content_type=method._hydra_nano_services_web_api.content_type,
                                     method=method._hydra_nano_services_web_api.method,
                                     is_constructor=method._hydra_nano_services_web_api.is_constructor,
@@ -372,9 +373,12 @@ class WebApplication:
                             if 'cls' in parameters1:
                                 del parameters2['cls']
                             has_diff_web_api = (
-                                method._hydra_nano_services_web_api.method != immediate._hydra_nano_services_web_api.method
-                                or method._hydra_nano_services_web_api.content_type != immediate._hydra_nano_services_web_api.content_type
-                                or method._hydra_nano_services_web_api.is_constructor != immediate._hydra_nano_services_web_api.is_constructor
+                                method._hydra_nano_services_web_api.method !=
+                                immediate._hydra_nano_services_web_api.method
+                                or method._hydra_nano_services_web_api.content_type !=
+                                immediate._hydra_nano_services_web_api.content_type
+                                or method._hydra_nano_services_web_api.is_constructor !=
+                                immediate._hydra_nano_services_web_api.is_constructor
                                 or (inspect.signature(method).return_annotation !=
                                     inspect.signature(immediate).return_annotation)
                                 or parameters1 != parameters2
@@ -385,7 +389,8 @@ class WebApplication:
                                     f"in {class_name}.{method_name}"
                                     f" and {ancestor.__name__}.{method_name}"
                                 )
-                            elif method._hydra_nano_services_web_api.arg_annotations != immediate._hydra_nano_services_web_api.arg_annotations:
+                            elif method._hydra_nano_services_web_api.arg_annotations != \
+                                    immediate._hydra_nano_services_web_api.arg_annotations:
                                 raise TypeError(
                                     f"Mismatch in name and/or type specifications between {class_name}.{method_name}"
                                     f" and {ancestor.__name__}.{method_name}"
@@ -479,7 +484,8 @@ class WebApplication:
                 self._generate_rest_docs()
         if host is not None and sock is not None:
             raise ValueError("Cannot specify both host/port and sock parameters")
-        await web_run_app(app=self._web_app, host=host, port=port, sock=sock, path=path, shutdown_timeout=shutdown_timeout,
+        await web_run_app(app=self._web_app, host=host, port=port, sock=sock, path=path,
+                          shutdown_timeout=shutdown_timeout,
                           ssl_context=ssl_context, backlog=backlog, handle_signals=handle_signals,
                           reuse_address=reuse_address, reuse_port=reuse_port)
 
@@ -773,7 +779,8 @@ class WebApplication:
             if no_such_params:
                 resp = Response(
                     status=400,
-                    text=f"No such parameter(s): {no_such_params} or missing type hint for param in method {api.qualname}"
+                    text=f"No such parameter(s): {no_such_params} or missing type hint"
+                         f" for param in method {api.qualname}"
                 )
                 await resp.prepare(request)
                 return resp
@@ -946,8 +953,9 @@ class WebApplication:
                 elif typ == AsyncChunkIterator:
                     kwargs = {key: streamed_bytes_arg_value(request)}
                 for k, v in kwargs.items():
-                    assert type(v) == str, f"key {k}={v} is of type {str(type(v))}\n{kwargs}"
-                kwargs.update({k: _convert_request_param(v, api.synchronous_arg_annotations[k]) if k != 'self' else v
+                    assert type(v) is str, f"key {k}={v} is of type {str(type(v))}\n{kwargs}"
+                kwargs.update({k: _convert_request_param(v, api.synchronous_arg_annotations[k])
+                               if k != 'self' else v
                                for k, v in request.query.items() if k in api.synchronous_arg_annotations})
             else:
                 # treat payload as json string:
@@ -1035,7 +1043,8 @@ class WebApplication:
                                     else:
                                         api.on_disconnect(*args)
                                 except Exception as e:
-                                    print(f"ERROR in call to on_disconnect from hydra.nano_services async generator: {e}")
+                                    print(f"ERROR in call to on_disconnect from "
+                                          f"hydra.nano_services async generator: {e}")
                             break
                 except (CancelledError, ConnectionResetError, ClientConnectionError):
                     raise

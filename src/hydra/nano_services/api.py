@@ -416,4 +416,4 @@ V = TypeVar('V')
 
 
 def raise_is_abstract(v: V = None) -> V:
-    raise NotImplemented(f"Call to abstract function")
+    raise NotImplementedError("Call to abstract function")

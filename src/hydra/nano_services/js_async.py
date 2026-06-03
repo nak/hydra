@@ -92,7 +92,6 @@ hydra.nano_services = class{
     static split_string(str){
         let values = str.split('\\0');
         return [values.slice(0, -1), values.slice(-1)[0]];
-        
     }
 
     static compute_query(param_map){
@@ -263,11 +262,11 @@ hydra.nano_services = class{
     static convert_str(text){
         return text;
     }
-    
+
     static convert_datetime(text){
        return new Date(text);
     }
-    
+
     static convert_bytes(text){
         let encoder = new TextEncoder();
         return encoder.encode(text);
@@ -414,9 +413,10 @@ hydra.nano_services = class{
 
     @classmethod
     def _generate_request(cls, out: IO, route: str, api: API, tab: str):
+        # noinspection PyBroadException
         try:
             offset = 1 if 'self' in api._func.__code__.co_varnames else 0
-        except:
+        except Exception:
             offset = 0
         docs = APIDoc()
         try:
