@@ -398,6 +398,35 @@ ul.auto-toc {
 </div>
 <div class="section" id="rest-resources-and-methods">
 <h1>ReST Resources and Methods</h1>
+<div class="section" id="resource-classrestexample">
+<h2>Resource: ClassRestExample</h2>
+<p>HTTP resource for testing class with instance methods</p>
+<div class="section" id="route-get-classrestexample-create">
+<h3>ROUTE: GET /ClassRestExample/_create</h3>
+<p>Content-Type: text/plain</p>
+<p>Create a session-level object</p>
+<p><strong>param</strong> : val <em>int</em> --  --  some dummy value</p>
+</div>
+<div class="section" id="route-post-classrestexample-echo">
+<h3>ROUTE: POST /ClassRestExample/echo</h3>
+<p>Content-Type: text/plain</p>
+<p>Some sort of doc</p>
+<p><strong>param</strong> : self {{string}} -- unique id of a created instance</p>
+<p><strong>param</strong> : param1 <em>int</em> --  --</p>
+<p><strong>param</strong> : param2 <em>bool</em> --  --</p>
+<p><strong>param</strong> : param3 <em>float</em> --  --</p>
+<p><strong>param</strong> : param4 <em>Optional</em> --  --</p>
+<p><strong>response</strong>: <em>str</em> --   sting based on state and params</p>
+</div>
+<div class="section" id="route-get-classrestexample-expire">
+<h3>ROUTE: GET /ClassRestExample/expire</h3>
+<p>Content-Type: text/plain</p>
+<p>Release/close an instance on the server that was created through invocation of _create for the
+associated resource</p>
+<p><em>undocumented param</em>: new_lease_time of type int
+<em>undocumented param</em>: _uuid of type Optional</p>
+</div>
+</div>
 <div class="section" id="resource-classrestexampleasync">
 <h2>Resource: ClassRestExampleAsync</h2>
 <p>HTTP resource for testing class with instance methods</p>
@@ -426,6 +455,82 @@ associated resource</p>
 <p><em>undocumented param</em>: new_lease_time of type int
 <em>undocumented param</em>: _uuid of type Optional</p>
 <p><strong>param</strong> : self {{string}} -- unique id of a created instance</p>
+</div>
+<div class="section" id="route-get-restapiexample-api-get-basic">
+<h3>ROUTE: GET /RestAPIExample/api_get_basic</h3>
+<p>Content-Type: text/plain</p>
+<p>Some sort of doc</p>
+<p><strong>param</strong> : param1 <em>int</em> --  --</p>
+<p><strong>param</strong> : param2 <em>bool</em> --  --</p>
+<p><strong>param</strong> : param3 <em>float</em> --  --</p>
+<p><strong>param</strong> : param4 <em>str</em> --  --</p>
+<p><strong>response</strong>: <em>str</em> --   String for test_api_basic</p>
+</div>
+<div class="section" id="route-get-restapiexample-api-get-stream">
+<h3>ROUTE: GET /RestAPIExample/api_get_stream</h3>
+<p>Content-Type: text/streamed; charset=x-user-defined</p>
+<p>Some sort of doc</p>
+<p><strong>param</strong> : param1 <em>int</em> --  --</p>
+<p><strong>param</strong> : param2 <em>bool</em> --  --</p>
+<p><strong>param</strong> : param3 <em>float</em> --  --</p>
+<p><strong>param</strong> : param4 <em>Optional</em> --  --</p>
+<p><strong>response</strong>: <em>int</em> --  [streamed]  stream of int</p>
+</div>
+<div class="section" id="route-get-restapiexample-api-get-stream-text">
+<h3>ROUTE: GET /RestAPIExample/api_get_stream_text</h3>
+<p>Content-Type: text/streamed; charset=x-user-defined</p>
+<p>Some sort of doc</p>
+<p><strong>param</strong> : param1 <em>int</em> --  --</p>
+<p><strong>param</strong> : param2 <em>bool</em> --  --</p>
+<p><strong>param</strong> : param3 <em>float</em> --  --</p>
+<p><strong>param</strong> : param4 <em>Optional</em> --  --</p>
+<p><strong>response</strong>: <em>str</em> --  [streamed]  stream of int</p>
+</div>
+<div class="section" id="route-post-restapiexample-api-post-basic">
+<h3>ROUTE: POST /RestAPIExample/api_post_basic</h3>
+<p>Content-Type: text/json</p>
+<p>Some sort of doc</p>
+<p><strong>param</strong> : param1 <em>int</em> --  --</p>
+<p><strong>param</strong> : param2 <em>bool</em> --  --</p>
+<p><strong>param</strong> : param3 <em>float</em> --  --</p>
+<p><strong>param</strong> : param4 <em>Optional</em> --  --</p>
+<p><strong>response</strong>: <em>str</em> --   stream of int</p>
+</div>
+<div class="section" id="route-post-restapiexample-api-post-stream">
+<h3>ROUTE: POST /RestAPIExample/api_post_stream</h3>
+<p>Content-Type: text/streamed; charset=x-user-defined</p>
+<p>Some sort of doc</p>
+<p><strong>param</strong> : param1 <em>int</em> --  --</p>
+<p><strong>param</strong> : param2 <em>bool</em> --  --</p>
+<p><strong>param</strong> : param3 <em>float</em> --  --</p>
+<p><strong>param</strong> : param4 <em>str</em> --  --</p>
+<p><strong>response</strong>: <em>int</em> --  [streamed]  stream of int</p>
+</div>
+<div class="section" id="route-post-restapiexample-api-post-stream-text">
+<h3>ROUTE: POST /RestAPIExample/api_post_stream_text</h3>
+<p>Content-Type: text/streamed; charset=x-user-defined</p>
+<p>Some sort of doc</p>
+<p><strong>param</strong> : param1 <em>int</em> --  --</p>
+<p><strong>param</strong> : param2 <em>bool</em> --  --</p>
+<p><strong>param</strong> : param3 <em>float</em> --  --</p>
+<p><strong>param</strong> : param4 <em>Optional</em> --  --</p>
+<p><strong>response</strong>: <em>str</em> --  [streamed]  stream of int</p>
+</div>
+<div class="section" id="route-post-restapiexample-api-post-streamed-req-and-resp">
+<h3>ROUTE: POST /RestAPIExample/api_post_streamed_req_and_resp</h3>
+<p>Content-Type: text/streamed; charset=x-user-defined</p>
+<p>Some sort of doc</p>
+<p><strong>param</strong> : param1 <em>int</em> --  --</p>
+<p><strong>param</strong> : param2 <em>bool</em> --  --</p>
+<p><strong>param</strong> : param3 <em>float</em> --  --</p>
+<p><strong>param</strong> : param4 <em>iterator of type &lt;class 'str'&gt;</em> --  --</p>
+<p><strong>response</strong>: <em>str</em> --  [streamed]  stream of int</p>
+</div>
+<div class="section" id="route-get-restapiexample-publish-result">
+<h3>ROUTE: GET /RestAPIExample/publish_result</h3>
+<p>Content-Type: text/plain
+&lt;&lt;no documentation provided&gt;&gt;</p>
+<p><em>undocumented param</em>: result of type str</p>
 </div>
 </div>
 <div class="section" id="resource-restapiexampleasync">
@@ -769,6 +874,27 @@ associated resource</p>
 <p>Content-Type: text/plain
 &lt;&lt;no documentation provided&gt;&gt;</p>
 <p><em>undocumented param</em>: result of type str</p>
+</div>
+<div class="section" id="route-get-restapiexampleerrorasync-api-get-basic">
+<h3>ROUTE: GET /RestAPIExampleErrorAsync/api_get_basic</h3>
+<p>Content-Type: text/plain</p>
+<p>Some sort of doc</p>
+<p><strong>param</strong> : param1 <em>int</em> --  --  docs for first param</p>
+<p><strong>param</strong> : param2 <em>bool</em> --  --  docs for 2nd param</p>
+<p><strong>param</strong> : param3 <em>float</em> --  --  docs for param #3</p>
+<p><strong>param</strong> : param4 <em>str</em> --  --  docs for last param</p>
+<p><strong>param</strong> : param5 <em>dict of str, float</em> --  --</p>
+<p><strong>response</strong>: <em>str</em> --   String for test_api_basic</p>
+</div>
+<div class="section" id="route-get-restapiexampleerrorasync-api-post-basic">
+<h3>ROUTE: GET /RestAPIExampleErrorAsync/api_post_basic</h3>
+<p>Content-Type: text/json</p>
+<p>Some sort of doc</p>
+<p><strong>param</strong> : param1 <em>int</em> --  --</p>
+<p><strong>param</strong> : param2 <em>bool</em> --  --</p>
+<p><strong>param</strong> : param3 <em>float</em> --  --</p>
+<p><strong>param</strong> : param4 <em>Optional</em> --  --</p>
+<p><strong>response</strong>: <em>str</em> --   stream of int</p>
 </div>
 </div>
 </div>

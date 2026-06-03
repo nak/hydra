@@ -31,6 +31,7 @@ def find_free_port():
 class TestJavascriptGenerator:
 
     @pytest.mark.asyncio
+    @pytest.mark.skip("Unable to run in gitlab with no browser")
     async def test_generate_basic(self):
         port = find_free_port()
         def assert_preprocessor(request: Request) -> Dict[str, Any]:

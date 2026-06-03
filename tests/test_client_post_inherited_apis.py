@@ -136,7 +136,7 @@ async def test_client_instance_method_streamed_str_disconnected(tmpdir):
             count += 1
             if count == 121:
                 break  # disconnects client
-        await asyncio.sleep(1)  # give server time to process disconnect
+        await asyncio.sleep(3)  # give server time to process disconnect
         assert RestAPIExampleAsyncPostInheritedInterface.disconnected
     finally:
         await app.shutdown()

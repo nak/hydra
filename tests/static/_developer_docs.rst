@@ -5,6 +5,62 @@ REST API DOCUMENTATION
 ReST Resources and Methods
 ==========================
 
+Resource: ClassRestExample
+--------------------------
+
+HTTP resource for testing class with instance methods
+
+ROUTE: GET /ClassRestExample/_create
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Content-Type: text/plain
+
+Create a session-level object
+
+
+**param** : val *int* --  --  some dummy value
+
+
+
+
+
+ROUTE: POST /ClassRestExample/echo
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Content-Type: text/plain
+
+Some sort of doc
+
+**param** : self {{string}} -- unique id of a created instance
+
+**param** : param1 *int* --  -- 
+
+**param** : param2 *bool* --  -- 
+
+**param** : param3 *float* --  -- 
+
+**param** : param4 *Optional* --  -- 
+
+**response**: *str* --   sting based on state and params
+
+
+
+
+
+ROUTE: GET /ClassRestExample/expire
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Content-Type: text/plain
+
+Release/close an instance on the server that was created through invocation of _create for the
+associated resource
+
+
+*undocumented param*: new_lease_time of type int
+*undocumented param*: _uuid of type Optional
+
+
+
 Resource: ClassRestExampleAsync
 -------------------------------
 
@@ -60,6 +116,163 @@ associated resource
 *undocumented param*: _uuid of type Optional
 
 **param** : self {{string}} -- unique id of a created instance
+
+
+
+ROUTE: GET /RestAPIExample/api_get_basic
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Content-Type: text/plain
+
+Some sort of doc
+
+**param** : param1 *int* --  -- 
+
+**param** : param2 *bool* --  -- 
+
+**param** : param3 *float* --  -- 
+
+**param** : param4 *str* --  -- 
+
+**response**: *str* --   String for test_api_basic
+
+
+
+
+
+ROUTE: GET /RestAPIExample/api_get_stream
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Content-Type: text/streamed; charset=x-user-defined
+
+Some sort of doc
+
+**param** : param1 *int* --  -- 
+
+**param** : param2 *bool* --  -- 
+
+**param** : param3 *float* --  -- 
+
+**param** : param4 *Optional* --  -- 
+
+**response**: *int* --  [streamed]  stream of int
+
+
+
+
+
+ROUTE: GET /RestAPIExample/api_get_stream_text
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Content-Type: text/streamed; charset=x-user-defined
+
+Some sort of doc
+
+**param** : param1 *int* --  -- 
+
+**param** : param2 *bool* --  -- 
+
+**param** : param3 *float* --  -- 
+
+**param** : param4 *Optional* --  -- 
+
+**response**: *str* --  [streamed]  stream of int
+
+
+
+
+
+ROUTE: POST /RestAPIExample/api_post_basic
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Content-Type: text/json
+
+Some sort of doc
+
+**param** : param1 *int* --  -- 
+
+**param** : param2 *bool* --  -- 
+
+**param** : param3 *float* --  -- 
+
+**param** : param4 *Optional* --  -- 
+
+**response**: *str* --   stream of int
+
+
+
+
+
+ROUTE: POST /RestAPIExample/api_post_stream
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Content-Type: text/streamed; charset=x-user-defined
+
+Some sort of doc
+
+**param** : param1 *int* --  -- 
+
+**param** : param2 *bool* --  -- 
+
+**param** : param3 *float* --  -- 
+
+**param** : param4 *str* --  -- 
+
+**response**: *int* --  [streamed]  stream of int
+
+
+
+
+
+ROUTE: POST /RestAPIExample/api_post_stream_text
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Content-Type: text/streamed; charset=x-user-defined
+
+Some sort of doc
+
+**param** : param1 *int* --  -- 
+
+**param** : param2 *bool* --  -- 
+
+**param** : param3 *float* --  -- 
+
+**param** : param4 *Optional* --  -- 
+
+**response**: *str* --  [streamed]  stream of int
+
+
+
+
+
+ROUTE: POST /RestAPIExample/api_post_streamed_req_and_resp
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Content-Type: text/streamed; charset=x-user-defined
+
+Some sort of doc
+
+**param** : param1 *int* --  -- 
+
+**param** : param2 *bool* --  -- 
+
+**param** : param3 *float* --  -- 
+
+**param** : param4 *iterator of type <class 'str'>* --  -- 
+
+**response**: *str* --  [streamed]  stream of int
+
+
+
+
+
+ROUTE: GET /RestAPIExample/publish_result
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Content-Type: text/plain
+<<no documentation provided>>
+
+*undocumented param*: result of type str
 
 
 
@@ -710,5 +923,49 @@ Content-Type: text/plain
 <<no documentation provided>>
 
 *undocumented param*: result of type str
+
+
+
+ROUTE: GET /RestAPIExampleErrorAsync/api_get_basic
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Content-Type: text/plain
+
+Some sort of doc
+
+**param** : param1 *int* --  --  docs for first param
+
+**param** : param2 *bool* --  --  docs for 2nd param
+
+**param** : param3 *float* --  --  docs for param #3
+
+**param** : param4 *str* --  --  docs for last param
+
+**param** : param5 *dict of str, float* --  -- 
+
+**response**: *str* --   String for test_api_basic
+
+
+
+
+
+ROUTE: GET /RestAPIExampleErrorAsync/api_post_basic
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Content-Type: text/json
+
+Some sort of doc
+
+**param** : param1 *int* --  -- 
+
+**param** : param2 *bool* --  -- 
+
+**param** : param3 *float* --  -- 
+
+**param** : param4 *Optional* --  -- 
+
+**response**: *str* --   stream of int
+
+
 
 
