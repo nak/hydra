@@ -41,16 +41,23 @@ launching test execution against it  and dispatching it to the reserved device. 
 completes, the agent publishes the result *and* updates the registry to mark
 the device available again.
 
-The diagram below shows the full flow, with the two failure modes drawn explicitly.  Only
-Host A's interior is expanded to show the decision point and self-healing flow:
+The system is described by two diagrams. The first shows the **nominal end-to-end flow**
+across two hosts and three devices, with the agents' internal decision points elided. The
+second zooms in on a **single agent's decision point** -- the in-sync / out-of-sync branch
+inside an agent -- to show how the registry self-heals.
+
+**Nominal flow (overview).** A reservation is picked from the registry, sent to the owning
+host's agent, accepted, the test runs against the reserved device, and on completion the
+device is released back to the registry. Both hosts and all three devices are shown; the
+decision point inside each agent is collapsed:
 
 .. graphviz::
-   :alt: A reservation system uses an approximate registry to pick a device, then asks the owning host's nano_services agent to reserve it. Inside Host A, an explicit decision point compares the agent's ground truth against the registry approximation: the IN-SYNC branch reserves the device locally and launches the test before releasing it on completion; the OUT-OF-SYNC branch refuses the reservation and pushes an authoritative state update back into the registry to self-heal it. Host B follows the same pattern for its own devices.
+   :alt: A reservation system reads the approximate registry, picks a device, and asks the owning host's nano_services agent to reserve it. Two hosts are shown, with three devices distributed between them. The agents accept the reservation and run the test on the reserved device, then release it back to the registry on completion. The internal decision point in each agent is collapsed.
    :align: center
-   :caption: Distributed device reservation across multiple hosts
+   :caption: Nominal reservation flow across two hosts and three devices; agent decision points are elided.
    :layout: neato
 
-   digraph DeviceReservationFlow {
+   digraph DeviceReservationOverview {
        splines=spline;
        overlap=false;
        sep="+8";
@@ -79,7 +86,7 @@ Host A's interior is expanded to show the decision point and self-healing flow:
        }
 
        subgraph cluster_host_a {
-           label="Host A  -- decision shown";
+           label="Host A  -- decision elided";
            labelloc="t";
            fontname="Helvetica-Bold";
            fontsize=12;
@@ -87,37 +94,24 @@ Host A's interior is expanded to show the decision point and self-healing flow:
            color="#2e8b57";
            fillcolor="#eaf7ee";
 
-           agent_a [label="nano_services Agent A\n@web_api reserve(device_id)\n@web_api release(device_id)\nSOURCE OF TRUTH", shape=box,
+           agent_a [label="Agent A\nreserve()\nrelease()\n(decision\nelided)", shape=box,
                     style="rounded,filled", fillcolor="#ffffff", color="#2e8b57",
+                    width=1.6, fixedsize=false,
                     pos="5,3!"];
 
-           decide_a [label="gnd truth\n agrees?",
-                     shape=diamond, style="filled", fillcolor="#fff8dc", color="#b58900",
-                     pos="7.5,3!"];
-
-           reserve_ok_a [label="reserve device\nlocally", shape=box,
-                         style="rounded,filled", fillcolor="#ffffff", color="#2e8b57",
-                         pos="9.5,3.7!"];
-
-           refuse_a [label="refuse reservation", shape=box,
-                     style="rounded,filled", fillcolor="#ffffff", color="#a5533b",
-                     pos="9.5,2.3!"];
-
-           dev_c [label="dev_c", shape=box, style="rounded,filled", fillcolor="#ffffff", color="#2e8b57",
-                  pos="11.5,3.95!"];
            dev_b [label="dev_b", shape=box, style="rounded,filled", fillcolor="#ffffff", color="#2e8b57",
-                  pos="11.5,3.4!"];
+                  width=0.9, fixedsize=false,
+                  pos="9.5,3.4!"];
+           dev_c [label="dev_c", shape=box, style="rounded,filled", fillcolor="#ffffff", color="#2e8b57",
+                  width=0.9, fixedsize=false,
+                  pos="9.5,2.6!"];
 
-           agent_a -> decide_a [label="3. check"];
-           decide_a -> reserve_ok_a [label="IN SYNC\n(available)", color="#2e8b57", fontcolor="#2e8b57"];
-           decide_a -> refuse_a [label="OUT OF SYNC\n(busy /\nunavailable)", color="#a5533b", fontcolor="#a5533b"];
-
-           reserve_ok_a -> dev_c [label="4a. launch test", style=dashed, color="#2e8b57"];
-           reserve_ok_a -> dev_b [style=dashed, color="#2e8b57"];
+           agent_a -> dev_b [label="run test", style=dashed, color="#2e8b57"];
+           agent_a -> dev_c [style=dashed, color="#2e8b57"];
        }
 
        subgraph cluster_host_b {
-           label="Host B -- decision elided";
+           label="Host B  -- decision elided";
            labelloc="t";
            fontname="Helvetica-Bold";
            fontsize=12;
@@ -128,7 +122,7 @@ Host A's interior is expanded to show the decision point and self-healing flow:
            agent_b [label="Agent B\nreserve()\nrelease()\n(decision\nelided)", shape=box,
                     style="rounded,filled", fillcolor="#ffffff", color="#a5533b",
                     width=1.6, fixedsize=false,
-                    pos="4,5.5!"];
+                    pos="5,5.5!"];
 
            dev_a [label="dev_a", shape=box, style="rounded,filled", fillcolor="#ffffff", color="#a5533b",
                   width=0.9, fixedsize=false,
@@ -137,19 +131,97 @@ Host A's interior is expanded to show the decision point and self-healing flow:
            agent_b -> dev_a [label="run test", style=dashed, color="#a5533b"];
        }
 
-       reservation -> agent_a [label="2. reserve(dev_c)"];
+       reservation -> agent_a [label="2. reserve(dev_b)", color="#2e8b57"];
        reservation -> agent_b [label="2'. reserve(dev_a)", color="#a5533b"];
 
-       reserve_ok_a -> reservation [label="4a. OK", color="#2e8b57"];
-       refuse_a -> reservation [label="4b. refused; retry", color="#a5533b", style=dashed];
-       refuse_a -> registry:d3 [label="4b. push authoritative state\n(self-heal)", color="#a5533b", style=bold];
+       agent_a -> reservation [label="3. OK", color="#2e8b57"];
+       agent_b -> reservation [label="3'. OK", color="#a5533b"];
+       dev_b -> agent_a [label="4. tests complete", style=dotted, color="#2e8b57"];
+       agent_a -> registry:d2 [label="5. release(dev_b)\n(-> available)", color="#2e8b57", style=dotted];
+       dev_a -> agent_b [label="4'. tests complete", style=dotted, color="#a5533b"];
+       agent_b -> registry:d1 [label="5'. release(dev_a)\n(-> available)", color="#a5533b", style=dotted];
+   }
 
-       dev_c -> agent_a [label="5a. tests complete", style=dotted, color="#2e8b57"];
-       agent_a -> registry:d3 [label="6a. release(dev_c)\n(-> available)", color="#2e8b57", style=dotted];
+**Decision point detail.** When the registry's approximation diverges from an agent's ground
+truth, the reservation must be refused *and* the registry corrected. The diagram below
+zooms into a single agent (here owning two devices) and shows the two outcomes of the
+decision -- only the two outcome boxes, no other clusters:
 
-       caption [shape=plaintext, fontsize=10,
-                label="Each host runs its own @web_api agent and applies the same IN-SYNC / OUT-OF-SYNC decision; Host B's interior is collapsed to keep the diagram readable."];
-       { rank=sink; caption; }
+.. graphviz::
+   :alt: When the registry and host (ground truth) device status are out of sync
+   :align: center
+   :caption: When the registry and host (ground truth) device status are out of sync
+   :layout: neato
+
+   digraph DeviceReservationDecision {
+       splines=spline;
+       overlap=false;
+       sep="+8";
+       bgcolor="white";
+       node [fontname="Helvetica", fontsize=12];
+       edge [fontname="Helvetica", fontsize=11];
+
+       subgraph cluster_central {
+           label="Central Services";
+           labelloc="t";
+           fontname="Helvetica-Bold";
+           fontsize=12;
+           style="rounded,filled";
+           color="#3b6ea5";
+           fillcolor="#eaf2fb";
+
+           reservation [label="Reservation System\n(picks candidate, calls reserve())", shape=box,
+                        style="rounded,filled", fillcolor="#ffffff", color="#3b6ea5",
+                        pos="0,-0.5!"];
+
+           registry [label="{ <f0> Device Registry\n(APPROXIMATE state) | <dx> dev_x : avail? | <dy> dev_y : avail? | <d4> ... | <dn> dev_N : avail? }",
+                     shape=record, style="filled", fillcolor="#fff8dc", color="#b58900",
+                     pos="5,-0.5!"];
+       }
+
+       subgraph cluster_host {
+           label="Host C";
+           labelloc="t";
+           fontname="Helvetica-Bold";
+           fontsize=12;
+           style="rounded,filled";
+           color="#2e8b57";
+           fillcolor="#eaf7ee";
+
+           agent [label="Agent\n@web_api\ \ \ \ \ \ \ \ \ \ \ \ \ \n reserve(device_id)\n\nSOURCE OF TRUTH", shape=box,
+                  style="rounded,filled", fillcolor="#ffffff", color="#2e8b57",
+                  pos="0,2!"];
+
+           decide [label="gnd truth\nagrees?",
+                   shape=diamond, style="filled", fillcolor="#fff8dc", color="#b58900",
+                   pos="2.5,2!"];
+
+           reserve_ok [label="reserve device\nlocally", shape=box,
+                       style="rounded,filled", fillcolor="#ffffff", color="#2e8b57",
+                       pos="5,2.8!"];
+
+           refuse [label="refuse + push\nauthoritative state\n(self-heal)", shape=box,
+                   style="rounded,filled", fillcolor="#ffffff", color="#a5533b",
+                   pos="5,1.2!"];
+
+           dev_x [label="dev_x", shape=box, style="rounded,filled", fillcolor="#ffffff", color="#2e8b57",
+                  width=0.9, fixedsize=false,
+                  pos="7.5,3.2!"];
+           dev_y [label="dev_y", shape=box, style="rounded,filled", fillcolor="#ffffff", color="#2e8b57",
+                  width=0.9, fixedsize=false,
+                  pos="7.5,2.4!"];
+
+           agent -> decide [label="check"];
+           decide -> reserve_ok [label="IN SYNC", color="#2e8b57", fontcolor="#2e8b57"];
+           decide -> refuse [label="OUT OF SYNC", color="#a5533b", fontcolor="#a5533b"];
+
+           reserve_ok -> dev_x [label="launch test", style=dashed, color="#2e8b57"];
+           reserve_ok -> dev_y [style=dashed, color="#2e8b57"];
+       }
+
+       reservation -> agent [label="reserve(device_id)"];
+       refuse -> registry:dx [label="update authoritative state", color="#a5533b", style=bold];
+       refuse -> reservation [label="refused; retry\nwith different candidate", color="#a5533b", style=dashed];
    }
 
 How this maps to ``@web_api`` declarations:
@@ -180,6 +252,86 @@ A More Complete Example
 
 .. automodule:: hydra.nano_services.api
    :no-index:
+
+Server-Side Exceptions and How They Reach the Client
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Because *hydra.nano_services* is an RPC mechanism over HTTP, an exception raised inside a
+``@web_api`` method on the server cannot literally be re-raised as the same Python object on
+the client -- the exception has to cross a network boundary. The framework handles this
+translation so that the *client call still raises* when the server's call failed, even though
+the wire is HTTP.
+
+What happens on the server
+""""""""""""""""""""""""""
+
+When a ``@web_api`` method raises, the request handler in :mod:`hydra.nano_services.http`
+catches the exception and turns it into a non-2xx HTTP response:
+
+* The HTTP status code is set to ``400`` (the framework's generic "request failed" code; a
+  few specific paths use other 4xx codes -- e.g., ``PermissionError`` and bad query strings
+  are mapped onto their own ``response_from_exception`` calls).
+* The response ``reason`` field carries a short tag describing what happened, typically of
+  the form ``"Exception in processing: <exception class name>(<message>)"`` or
+  ``"General exception in request: <str(exception)>"``.
+* The response body carries the longer detail -- the stringified exception plus, where
+  available, additional traceback text -- as ``text/plain``.
+
+For **streaming responses** (``AsyncIterator[T]`` / ``AsyncGenerator[T, None]``), an exception
+raised *after* the response has already started streaming is signaled by changing the
+in-flight ``StreamResponse`` status from 200 to 400 mid-stream (see ``set_status(400, ...)``
+in the streaming code path), so the client can detect that the stream ended in error rather
+than completing cleanly.
+
+What happens on the client
+""""""""""""""""""""""""""
+
+On the client side, the auto-generated Python proxy in :mod:`hydra.nano_services.client`
+calls ``resp.raise_for_status()`` on every response. If the response was non-2xx, aiohttp
+raises a ``ClientResponseError`` carrying the status code and reason. The proxy catches this
+and re-raises it as :class:`hydra.nano_services.client.InvocationError`, with a message
+composed of:
+
+#. the original HTTP response body (the stringified server-side exception / traceback), and
+#. a trailer of the form ``"Request to <method_name> failed: <reason>"``.
+
+So a client caller wraps the proxy call in ``try``/``except InvocationError``:
+
+.. code-block:: python
+
+    from hydra.nano_services.client import InvocationError
+
+    GreetingsProxy = GreetingsInterface.ClientEndpointMapping()['http://localhost:8080/']
+
+    async def main():
+        try:
+            response = await GreetingsProxy.welcome("Bob")
+            print(response)
+        except InvocationError as e:
+            # str(e) contains the server's exception detail plus the reason trailer.
+            print(f"Remote call failed:\n{e}")
+
+In other words, the client does **not** receive the *same* Python exception class that was
+raised on the server -- it receives a single ``InvocationError`` whose message preserves the
+server-side exception class name and message (and, where the server logged it, a stack
+trace). This keeps the contract simple (clients always catch one exception type) while still
+giving the developer the diagnostic information they need.
+
+Exceptions
+""""""""""
+
+* **One exception type, by design.** There is no automatic mapping of arbitrary server-side
+  exception classes onto matching client-side classes. The exception message is, however,
+  the same.  On the client side, only an ``InvocationError`` will be raised.
+* **Mid-stream errors also raise InvocationError.** For streaming endpoints, a successful start
+  followed by a failure mid-yield reaches the client as the streamed response ending with a
+  400 status -- the client iterator again surfaces this on the client side
+  as an ``InvocationError`` when it tries to pull the next item.
+* **HTTP-layer failures are also InvocationError.** Connection failures, timeouts, and
+  certificate problems are caught at the same layer and surfaced as
+  ``InvocationError`` (with a message that names the underlying aiohttp failure). The
+  client doesn't need a separate ``try/except`` for transport vs. application errors.  This
+  may change in the future.
 
 
 .. _required-type-annotations-and-restrictions:
