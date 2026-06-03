@@ -2,7 +2,7 @@ from pathlib import Path
 
 import setuptools
 
-VERSION = "1.0.17"
+VERSION = "1.1.0"
 
 requirements = [
     'frozendict>=2.3.4',
