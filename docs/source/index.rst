@@ -8,6 +8,7 @@ application code can focus on logic rather than networking plumbing.
 Current capabilities:
 
 - **Distributed Queues** — source and sink queue pairs allowing items to be produced and consumed across host boundaries, with optional SSL and join semantics.
+- **Nano Services** — a lightweight framework for exposing Python class APIs as HTTP nano-services, with auto-generated JavaScript and remote Python clients hiding the details of the HTTP transport.
 
 More modules will be added here as the package grows.
 
@@ -16,3 +17,4 @@ More modules will be added here as the package grows.
    :caption: Modules:
 
    distributed_queues
+   nano_services
