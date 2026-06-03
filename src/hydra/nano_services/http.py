@@ -99,7 +99,7 @@ async def response_from_exception(request, reason: str, code: int = 400):
     return resp
 
 
-ASYNC_POLLING_INTERVAL = float(os.environ.get('hydra.nano_services_ASYNC_POLL', 0.05))
+ASYNC_POLLING_INTERVAL = float(os.environ.get('hydra.nano_services_ASYNC_POLL', 0.15))
 
 
 # noinspection PyUnresolvedReferences

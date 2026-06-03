@@ -332,6 +332,7 @@ class RestAPIExampleAsync(RestAPIExampleAsyncInterface):
     async def my_value_repeated_string(self, count: int) -> AsyncIterator[str]:
         for _ in range(count):
             yield str(self._val)
+            await asyncio.sleep(0.01)
 
     @classmethod
     @web_api(content_type='text/plain', method=RestMethod.GET)

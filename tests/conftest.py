@@ -87,8 +87,6 @@ def signed_client(ca_credentials):
     yield client_pem, client_key, ca_pem
 
 
-
-
 @pytest.fixture()
 def clear_web_app():
     WebApplication._context= {}

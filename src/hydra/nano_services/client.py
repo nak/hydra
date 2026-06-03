@@ -96,6 +96,7 @@ an "Interface" suffix, you will have to specify *impl_name=<name-of-concrete-cla
 method above.  The *end_point* parameter specifies the base url to the server that serves up MyServceApi class.
 
 """
+import asyncio
 import inspect
 import json
 import sys
