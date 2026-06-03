@@ -247,3 +247,4 @@ class RestAPIExampleAsyncPostInherited(RestAPIExampleAsyncPostInheritedInterface
     async def my_value_repeated_string_disconnected(self, count: int) -> AsyncIterator[str]:
         for _ in range(count):
             yield str(self._val)*65537
+            await asyncio.sleep(0.02)

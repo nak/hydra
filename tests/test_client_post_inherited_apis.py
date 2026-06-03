@@ -134,7 +134,7 @@ async def test_client_instance_method_streamed_str_disconnected(tmpdir):
         async for item in instance.my_value_repeated_string_disconnected(200):
             assert item == str(29)*65537
             count += 1
-            if count == 121:
+            if count == 12:
                 break  # disconnects client
         await asyncio.sleep(3)  # give server time to process disconnect
         assert RestAPIExampleAsyncPostInheritedInterface.disconnected
