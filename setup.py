@@ -6,6 +6,7 @@ VERSION = "1.0.17"
 
 requirements = [
     'frozendict>=2.3.4',
+    'aiohttp',
 ]
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
