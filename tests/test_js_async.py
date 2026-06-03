@@ -1,9 +1,10 @@
 import asyncio
 import json
 import os
+import socket
 import traceback
 import webbrowser
-from contextlib import suppress
+from contextlib import suppress, closing
 from pathlib import Path
 from typing import Dict, Any
 
@@ -15,11 +16,16 @@ from hydra.nano_services.http import WebApplication
 
 import sys
 
-from tests.conftest import find_free_port
-
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'example'))
 from class_rest_get import RestAPIExampleAsync
+
+
+def find_free_port():
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
 
 
 class TestJavascriptGenerator:

@@ -1,9 +1,10 @@
 import asyncio
 import json
 import os
+import socket
 import sys
 import webbrowser
-from contextlib import suppress
+from contextlib import suppress, closing
 from pathlib import Path
 from typing import Dict, Any
 
@@ -14,13 +15,18 @@ from aiohttp.web_response import Response, StreamResponse
 from hydra.nano_services.http import WebApplication
 
 
-PORT = 8089
+def find_free_port():
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
 
 
 class TestJavascriptGenerator:
 
     @pytest.mark.asyncio
     async def test_generate_basic(self):
+        port = find_free_port()
         def assert_preprocessor(request: Request) -> Dict[str, Any]:
             assert isinstance(request, Request), "Failed to get valid response on pre-processing"
             return {}
@@ -56,9 +62,9 @@ class TestJavascriptGenerator:
                 os.write(sys.stderr.fileno(),
                          b"UNABLE TO GET BROWSER SUPPORT HEADLESS CONFIGURATION. DEFAULTING TO NON_HEADLESSS")
                 browser = webbrowser.get()
-            browser.open(f"http://localhost:{PORT}/static/index.html")
+            browser.open(f"http://localhost:{port}/static/index.html")
 
-        app_task = asyncio.create_task(app.start(modules=['class_js_test'], port=PORT))
+        app_task = asyncio.create_task(app.start(modules=['class_js_test'], port=port))
         browser_task = asyncio.create_task(launch_browser())
         try:
             result = await asyncio.wait_for(RestAPIExample.result_queue.get(), timeout=120)
