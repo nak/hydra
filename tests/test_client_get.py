@@ -1,11 +1,11 @@
 import asyncio
+import socket
 from asyncio import CancelledError
-from contextlib import suppress
+from contextlib import suppress, closing
 from pathlib import Path
 import sys
 
 from hydra.nano_services.client import InvocationError
-from tests.conftest import find_free_port
 
 if True:
     sys.path.insert(0, str(Path(__file__).parent / 'example'))
@@ -13,6 +13,13 @@ from pathlib import Path
 
 import pytest
 from hydra.nano_services.http import WebApplication
+
+
+def find_free_port():
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
 
 
 @pytest.mark.asyncio
